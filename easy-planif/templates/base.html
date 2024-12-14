@@ -5,13 +5,29 @@
 <head>
   <meta charset="utf-8">
   <title>{% block title %}Easy Planif{% endblock %}</title>
+  {% load bootstrap5 %}
+  {% bootstrap_css %}
+  {% bootstrap_javascript %}
 </head>
 
 <body>
-  <main>
-    {% block content %}
-    {% endblock %}
-  </main>
+  <div class="container">
+  <ul class="nav bg-info">
+    <li class="nav-item">
+      <a class="nav-link link-light" href="/">HOME</a>
+    </li>
+    {% if user.is_authenticated %}
+    <li class="nav-item">
+      <form action="{% url 'logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit">Log Out</button>
+      </form>
+    </li>
+    {% endif %}
+  </ul>
+  {% block content %}
+  {% endblock %}
+  </div>
 </body>
 
 </html>
