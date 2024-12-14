@@ -1,0 +1,30 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+  <script type="text/javascript">
+   var input=document.getElementsByTagName('td');
+   for(i=0;i<input.length;i++){
+       (function (i){
+	        input[i].addEventListener('click',function(e){
+			   e.target.style.background='red';
+			});
+	   })(i)
+   }
+  </script>
+  <title>Django Calendar App</title>
+</head>
+<body>
+  {% if user.is_authenticated %}
+  {% block content %}
+  {% endblock %}
+
+  {% block script %}
+  {% endblock %}
+  {% endif %}
+</body>
+</html>
