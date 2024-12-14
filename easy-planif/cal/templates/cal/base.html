@@ -1,0 +1,42 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+  <title>Django Calendar App</title>
+  {% load django_bootstrap5 %}
+  {% bootstrap_css %}
+  {% bootstrap_javascript %}
+  <script>
+    var csrftoken = '{{ csrf_token }}';
+    function createAvailableEvent(date){
+        xhr = new XMLHttpRequest();
+        xhr.open("POST", "event/new/");
+        //xhr.setRequestHeader("Content-Type", "application/json");
+        xhr.setRequestHeader("Content-type","application/x-www-form-urlencoded");
+        xhr.setRequestHeader('X-CSRFToken', csrftoken);
+        body = "title=available&date="+date;
+        xhr.onload = () => {
+          if(xhr.status === 201) {
+            location.reload();
+          } else {
+            alert("Event was not created!");
+          }
+        };
+        xhr.send(body);
+    }
+  </script>
+</head>
+<body>
+  {% if user.is_authenticated %}
+  {% block content %}
+  {% endblock %}
+
+  {% block script %}
+  {% endblock %}
+  {% endif %}
+</body>
+</html>
