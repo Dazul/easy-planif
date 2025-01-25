@@ -1,0 +1,21 @@
+  <ul class="nav bg-info">
+    <li class="nav-item">
+      <a class="nav-link link-light" href="/">home</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link link-light" href="/calendar">calendar</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link link-light" href="/users">users</a>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link link-light" href="/tasks">tasks</a>
+    </li>
+    <li class="nav-item">
+      <form action="{% url 'logout' %}" method="post">
+        {% csrf_token %}
+        <button type="submit">Log Out</button>
+      </form>
+    </li>
+  </ul>
+

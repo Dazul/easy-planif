@@ -31,12 +31,15 @@
   </script>
 </head>
 <body>
+  <div class="container">
   {% if user.is_authenticated %}
+  {% include "menu.html" %} 
   {% block content %}
   {% endblock %}
 
   {% block script %}
   {% endblock %}
   {% endif %}
+  </div>
 </body>
 </html>
