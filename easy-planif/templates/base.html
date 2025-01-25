@@ -12,19 +12,9 @@
 
 <body>
   <div class="container">
-  <ul class="nav bg-info">
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/">HOME</a>
-    </li>
-    {% if user.is_authenticated %}
-    <li class="nav-item">
-      <form action="{% url 'logout' %}" method="post">
-        {% csrf_token %}
-        <button type="submit">Log Out</button>
-      </form>
-    </li>
-    {% endif %}
-  </ul>
+  {% if user.is_authenticated %}
+  {% include "menu.html" %}
+  {% endif %}
   {% block content %}
   {% endblock %}
   </div>
