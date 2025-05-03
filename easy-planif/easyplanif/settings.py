@@ -40,6 +40,7 @@ INSTALLED_APPS = [
     'accounts',
     'django_bootstrap5',
     'cal',
+    'tasks',
 ]
 
 MIDDLEWARE = [
