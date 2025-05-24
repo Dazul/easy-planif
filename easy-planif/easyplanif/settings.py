@@ -39,6 +39,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'accounts',
     'django_bootstrap5',
+    'django_tables2',
     'cal',
     'tasks',
 ]

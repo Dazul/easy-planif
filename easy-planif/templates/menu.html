@@ -12,6 +12,9 @@
       <a class="nav-link link-light" href="/tasks">tasks</a>
     </li>
     <li class="nav-item">
+      <a class="nav-link link-light" href="/authorizations">authorizations</a>
+    </li>
+    <li class="nav-item">
       <form action="{% url 'logout' %}" method="post">
         {% csrf_token %}
         <button type="submit">Log Out</button>

@@ -39,3 +39,7 @@ def add_task(request):
         form = AddTaskForm()
 
     return render(request, "addTask.html", {"form": form})
+
+def get_authorizations(request):
+    query_results = Authorizations.objects.all()
+    return render(request, "authorizations.html", {'query_results': query_results})
