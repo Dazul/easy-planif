@@ -1,24 +1,50 @@
-  <ul class="nav bg-info">
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/">home</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/calendar">calendar</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/users">users</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/tasks">tasks</a>
-    </li>
-    <li class="nav-item">
-      <a class="nav-link link-light" href="/authorizations">authorizations</a>
-    </li>
-    <li class="nav-item">
-      <form action="{% url 'logout' %}" method="post">
-        {% csrf_token %}
-        <button type="submit">Log Out</button>
-      </form>
-    </li>
-  </ul>
 
+<nav class="navbar navbar-dark bg-dark">
+  <div class="container-fluid">
+      <a class="navbar-brand" href="/">Easy-planif</a>
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton1" data-bs-toggle="dropdown" aria-expanded="true">
+                Calendar
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
+                <li><a class="dropdown-item" href="/calendar">personal calendar</a></li>
+                <li><a class="dropdown-item" href="/global_calendar">global calendar</a></li>
+                <li><a class="dropdown-item" href="/planning">planning</a></li>
+                <li><a class="dropdown-item" href="/reservations">reservations</a></li>
+            </ul>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-bs-toggle="dropdown" aria-expanded="true">
+                Authorizations
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton2">
+                <li><a class="dropdown-item" href="/authorizations">authorizations</a></li>
+                <li><a class="dropdown-item" href="/comments">comments</a></li>
+            </ul>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton3" data-bs-toggle="dropdown" aria-expanded="true">
+                HR
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton3">
+                <li><a class="dropdown-item" href="/time_entry">time entry</a></li>
+                <li><a class="dropdown-item" href="/salary_entry">salary_entry</a></li>
+            </ul>
+        </div>
+        <div class="dropdown">
+            <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton4" data-bs-toggle="dropdown" aria-expanded="true">
+                Setup
+            </button>
+            <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton4">
+                <li><a class="dropdown-item" href="/users">users</a></li>
+                <li><a class="dropdown-item" href="/tasks">tasks</a></li>
+            </ul>
+        </div>
+        <div class="dropdown">
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit">Log Out</button>
+            </form>
+        </div>
+     </div>
+</nav>
