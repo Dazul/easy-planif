@@ -16,12 +16,11 @@
   {% if user.is_authenticated %}
   {% include "menu.html" %}
   <div class="clearfix">
-  <a href="addAuthorization">Add Authorization</a>
-  </div>
-  <div class="clearfix">
-  <table class="table"><tr><th>User</th><th>Task</th></tr>
-  {{ authorizations }}
-  </table>
+  <form action="/addComment" method="post">
+    {% csrf_token %}
+    {{ form }}
+    <input type="submit" value="Submit">
+  </form>
   </div>
   {% endif %}
   </div>

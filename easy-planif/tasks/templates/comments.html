@@ -16,11 +16,11 @@
   {% if user.is_authenticated %}
   {% include "menu.html" %}
   <div class="clearfix">
-  <a href="addAuthorization">Add Authorization</a>
+  <a href="addComment">Add comment</a>
   </div>
   <div class="clearfix">
-  <table class="table"><tr><th>User</th><th>Task</th></tr>
-  {{ authorizations }}
+  <table class="table"><tr><th>Employee</th><th>Comment</th><th>Type</th><th>Author</th><th>Date</th></tr>
+  {{ comments }}
   </table>
   </div>
   {% endif %}

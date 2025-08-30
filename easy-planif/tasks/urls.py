@@ -5,6 +5,10 @@ app_name = 'tasks'
 urlpatterns = [
     path('tasks', views.TasksView.as_view(), name='tasks'),
     path('addTask', views.add_task, name='add_task'),
-    path('authorizations', views.get_authorizations, name='authorizations'),
+    path('authorizations', views.AuthorizationsView.as_view(), name='authorizations'),
     path('addAuthorization', views.add_authorization, name='addAuthorization'),
+    path('comments', views.CommentsView.as_view(), name='comments'),
+    path('addComment', views.add_comment, name='addComment'),
+    path('commentTypes', views.CommentTypeView.as_view(), name='commentTypes'),
+    path('addCommentType', views.add_comment_type, name='addCommentType'),
 ]
