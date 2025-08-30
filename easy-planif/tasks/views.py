@@ -3,8 +3,8 @@ from django.views import generic
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
 
-from .models import *
-from .forms import *
+from .models import Tasks, Authorizations
+from .forms import AddTaskForm, AddAuthorizationForm
 
 # Create your views here.
 
