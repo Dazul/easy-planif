@@ -45,14 +45,6 @@ class CommentTypeView(generic.ListView):
         context['comment_types'] = mark_safe(d)
         return context
 
-def get_authorizations(request):
-    query_results = Authorizations.objects.all()
-    return render(request, "authorizations.html", {'query_results': query_results})
-
-def comment_types(request):
-    query_results = CommentType.objects.all()
-    return render(request, "commentTypes.html", {'query_results': query_results})
-
 def add_task(request):
     # if this is a POST request we need to process the form data
     if request.method == "POST":
