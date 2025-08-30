@@ -3,8 +3,8 @@ from django.views import generic
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
 
-from .models import Tasks, Authorizations
-from .forms import AddTaskForm, AddAuthorizationForm
+from .models import Tasks, Authorizations, CommentType
+from .forms import AddTaskForm, AddAuthorizationForm, AddCommentTypeForm
 
 # Create your views here.
 
@@ -24,6 +24,10 @@ class TasksView(generic.ListView):
 def get_authorizations(request):
     query_results = Authorizations.objects.all()
     return render(request, "authorizations.html", {'query_results': query_results})
+
+def comment_types(request):
+    query_results = CommentType.objects.all()
+    return render(request, "commentTypes.html", {'query_results': query_results})
 
 def add_task(request):
     # if this is a POST request we need to process the form data
@@ -62,3 +66,22 @@ def add_authorization(request):
         form = AddAuthorizationForm()
 
     return render(request, "addAuthorization.html", {"form": form})
+
+def add_comment_type(request):
+    # if this is a POST request we need to process the form data
+    if request.method == "POST":
+        # create a form instance and populate it with data from the request:
+        form = AddCommentTypeForm(request.POST)
+        # check whether it's valid:
+        if form.is_valid():
+            # process the data in form.cleaned_data as required
+            # ...
+            # redirect to a new URL:
+            form.save()
+            return HttpResponseRedirect("/commentTypes")
+
+    # if a GET (or any other method) we'll create a blank form
+    else:
+        form = AddCommentTypeForm()
+
+    return render(request, "addCommentType.html", {"form": form})

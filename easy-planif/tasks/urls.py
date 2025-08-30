@@ -7,4 +7,6 @@ urlpatterns = [
     path('addTask', views.add_task, name='add_task'),
     path('authorizations', views.get_authorizations, name='authorizations'),
     path('addAuthorization', views.add_authorization, name='addAuthorization'),
+    path('commentTypes', views.comment_types, name='commentTypes'),
+    path('addCommentType', views.add_comment_type, name='addCommentType'),
 ]
