@@ -1,5 +1,5 @@
 from django.forms import ModelForm
-from .models import Tasks, Authorizations, CommentType
+from .models import Tasks, Authorizations, CommentType, Comment
 
 class AddTaskForm(ModelForm):
     class Meta:
@@ -15,3 +15,8 @@ class AddCommentTypeForm(ModelForm):
     class Meta:
         model = CommentType
         fields = '__all__'
+
+class AddCommentForm(ModelForm):
+    class Meta:
+        model = Comment
+        fields = ['employee', 'comment', 'type']

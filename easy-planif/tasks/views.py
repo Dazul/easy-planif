@@ -3,8 +3,8 @@ from django.views import generic
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
 
-from .models import Tasks, Authorizations, CommentType
-from .forms import AddTaskForm, AddAuthorizationForm, AddCommentTypeForm
+from .models import Tasks, Authorizations, CommentType, Comment
+from .forms import AddTaskForm, AddAuthorizationForm, AddCommentTypeForm, AddCommentForm
 
 # Create your views here.
 
@@ -20,17 +20,16 @@ class TasksView(generic.ListView):
         context['tasks'] = mark_safe(d)
         return context
 
-class AuthorizationsView(generic.ListView):
-    model = Authorizations
-    template_name = 'authorizations.html'
+class CommentsView(generic.ListView):
+    model = Comment
+    template_name = 'comments.html'
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        d = '<table><tr><th>User</th><th>Task</th></tr>'
-        for t in Authorizations.objects.all():
-            d += f'<tr><td> {t.user} </td><td> {t.task} </td></tr>'
-        d += '</table>'
-        context['authorizations'] = mark_safe(d)
+        d = ''
+        for t in Comment.objects.all():
+            d += f'<tr><td>{t.employee}</td><td>{t.comment}</td><td>{t.type}</td><td>{t.instructor}</td><td>{t.date}</td></tr>'
+        context['comments'] = mark_safe(d)
         return context
 
 class AuthorizationsView(generic.ListView):
@@ -58,58 +57,43 @@ class CommentTypeView(generic.ListView):
         return context
 
 def add_task(request):
-    # if this is a POST request we need to process the form data
     if request.method == "POST":
-        # create a form instance and populate it with data from the request:
         form = AddTaskForm(request.POST)
-        # check whether it's valid:
         if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
             form.save()
             return HttpResponseRedirect("/tasks")
-
-    # if a GET (or any other method) we'll create a blank form
     else:
         form = AddTaskForm()
-
     return render(request, "addTask.html", {"form": form})
 
 def add_authorization(request):
-    # if this is a POST request we need to process the form data
     if request.method == "POST":
-        # create a form instance and populate it with data from the request:
         form = AddAuthorizationForm(request.POST)
-        # check whether it's valid:
         if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
             form.save()
             return HttpResponseRedirect("/authorizations")
-
-    # if a GET (or any other method) we'll create a blank form
     else:
         form = AddAuthorizationForm()
-
     return render(request, "addAuthorization.html", {"form": form})
 
-def add_comment_type(request):
-    # if this is a POST request we need to process the form data
+def add_comment(request):
     if request.method == "POST":
-        # create a form instance and populate it with data from the request:
-        form = AddCommentTypeForm(request.POST)
-        # check whether it's valid:
+        form = AddCommentForm(request.POST)
         if form.is_valid():
-            # process the data in form.cleaned_data as required
-            # ...
-            # redirect to a new URL:
+            comment = form.save(commit=False)
+            comment.instructor = request.user
+            comment.save()
+            return HttpResponseRedirect("/comments")
+    else:
+        form = AddCommentForm()
+    return render(request, "addComment.html", {"form": form})
+
+def add_comment_type(request):
+    if request.method == "POST":
+        form = AddCommentTypeForm(request.POST)
+        if form.is_valid():
             form.save()
             return HttpResponseRedirect("/commentTypes")
-
-    # if a GET (or any other method) we'll create a blank form
     else:
         form = AddCommentTypeForm()
-
     return render(request, "addCommentType.html", {"form": form})
