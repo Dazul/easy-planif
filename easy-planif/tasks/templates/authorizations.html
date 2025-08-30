@@ -10,7 +10,6 @@
   {% load django_bootstrap5 %}
   {% bootstrap_css %}
   {% bootstrap_javascript %}
-  {% load render_table from django_tables2 %}
 </head>
 <body>
   <div class="container">
@@ -20,7 +19,7 @@
   <a href="addAuthorization">Add Authorization</a>
   </div>
   <div class="clearfix">
-  {% render_table query_results %}
+  {{ authorizations }}
   </div>
   {% endif %}
   </div>

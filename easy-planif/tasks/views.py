@@ -18,7 +18,31 @@ class TasksView(generic.ListView):
         for t in Tasks.objects.all():
             d += f'<li> {t.task_name} </li>'
         context['tasks'] = mark_safe(d)
-        #context['tasks'] = mark_safe('Hello')
+        return context
+
+class AuthorizationsView(generic.ListView):
+    model = Authorizations
+    template_name = 'authorizations.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        d = '<table><tr><th>User</th><th>Task</th></tr>'
+        for t in Authorizations.objects.all():
+            d += f'<tr><td> {t.user} </td><td> {t.task} </td></tr>'
+        d += '</table>'
+        context['authorizations'] = mark_safe(d)
+        return context
+
+class CommentTypeView(generic.ListView):
+    model = CommentType
+    template_name = 'commentTypes.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        d = ''
+        for t in CommentType.objects.all():
+            d += f'<li> {t.comment_type} </li>'
+        context['comment_types'] = mark_safe(d)
         return context
 
 def get_authorizations(request):
