@@ -5,7 +5,7 @@ from django.views import generic
 from django.utils.safestring import mark_safe
 
 from .models import Event
-from .utils import Calendar
+from .utils import Calendar, GlobalCalendar
 from .forms import EventForm
 
 class CalendarView(generic.ListView):
@@ -30,10 +30,39 @@ class CalendarView(generic.ListView):
 
         return context
 
+class GlobalCalendarView(generic.ListView):
+    model = Event
+    template_name = 'cal/global_calendar.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # use today's date for the calendar
+        today = get_date_week(self.request.GET.get('week_date', None))
+        monday = today - timedelta(days=today.weekday())
+
+        week_dates = [monday + timedelta(days=i) for i in range(7)]
+
+        cal = GlobalCalendar()
+        # Call the formatmonth method, which returns our calendar as a table
+        html_cal = cal.formatweek(week_dates)
+        context['calendar'] = mark_safe(html_cal)
+
+        context['prev_week'] = prev_week(today)
+        context['next_week'] = next_week(today)
+
+        return context
+
 def get_date(req_day):
     if req_day:
         year, month = (int(x) for x in req_day.split('-'))
         return date(year, month, day=1)
+    return datetime.today()
+
+def get_date_week(req_day):
+    if req_day:
+        year, month, day = (int(x) for x in req_day.split('-'))
+        return date(year, month, day)
     return datetime.today()
 
 def prev_month(m):
@@ -48,6 +77,16 @@ def next_month(m):
     next_month = last + timedelta(days=1)
     month = 'month=' + str(next_month.year) + '-' + str(next_month.month)
     return month
+
+def prev_week(m):
+    week_date = m - timedelta(days=7)
+    week_date = 'week_date=' + str(week_date.year) + '-' + str(week_date.month) + '-' + str(week_date.day)
+    return week_date
+
+def next_week(m):
+    week_date = m + timedelta(days=7)
+    week_date = 'week_date=' + str(week_date.year) + '-' + str(week_date.month) + '-' + str(week_date.day)
+    return week_date
 
 
 def create_event(request, event_id=None):

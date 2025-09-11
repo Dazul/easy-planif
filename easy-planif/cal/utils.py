@@ -39,4 +39,29 @@ class Calendar(HTMLCalendar):
         cal += f'{self.formatweekheader()}\n'
         for week in self.monthdays2calendar(self.year, self.month):
             cal += f'{self.formatweek(week, events)}\n'
+        cal += '</table>'
         return cal
+
+class GlobalCalendar(Calendar):
+    def __init__(self):
+        super(Calendar, self).__init__()
+
+    def formatday(self, day, events):
+        events_per_day = events.filter(date__day=day)
+        d = ''
+        if len(events_per_day) != 0:
+            for event in events_per_day:
+                d += f'<li> {event.title} </li>'
+        if day != 0:
+            return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
+        return '<td></td>'
+
+    # formats a week as a tr
+    def formatweek(self, theweek):
+        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        week += f'{self.formatmonthname(theweek[0].year, theweek[0].month)}\n'
+        week += f'{self.formatweekheader()}\n'
+        for d in theweek:
+            week += self.formatday(d.day, events)
+        return f'<tr> {week} </tr>'
