@@ -14,9 +14,10 @@ class TasksView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        d = ''
+        d = '<ul class="list-group">'
         for t in Tasks.objects.all():
-            d += f'<li> {t.task_name} </li>'
+            d += f'<li class="list-group-item"> {t.task_name} </li>'
+        d += '</ul>'
         context['tasks'] = mark_safe(d)
         return context
 
@@ -50,9 +51,10 @@ class CommentTypeView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        d = ''
+        d = '<ul class="list-group">'
         for t in CommentType.objects.all():
-            d += f'<li> {t.comment_type} </li>'
+            d += f'<li class="list-group-item"> {t.comment_type} </li>'
+        d += '</ul>'
         context['comment_types'] = mark_safe(d)
         return context
 
