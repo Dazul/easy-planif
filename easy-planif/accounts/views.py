@@ -10,8 +10,9 @@ class UsersView(generic.ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        d = ''
+        d = '<ul class="list-group">'
         for m in CustomUser.objects.all():
-            d += f'<li> {m.username} </li>'
+            d += f'<li class="list-group-item"> {m.username} </li>'
+        d += '</ul>'
         context['users'] = mark_safe(d)
         return context
