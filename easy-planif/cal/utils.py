@@ -45,4 +45,43 @@ class Calendar(HTMLCalendar):
         cal += f'{self.formatweekheader()}\n'
         for week in self.monthdays2calendar(self.year, self.month):
             cal += f'{self.formatweek(week, events)}\n'
+        cal += '</table>'
         return cal
+
+class GlobalCalendar(Calendar):
+    def __init__(self):
+        super(Calendar, self).__init__()
+
+    def formatday(self, day, events, user_id):
+        events_per_day = events.filter(date__day=day, user__id=user_id)
+        d = ''
+        if len(events_per_day) != 0:
+            for event in events_per_day:
+                if event.is_available:
+                    d += '<li>Available</li>'
+                else:
+                    d += f'<li> {event.tasks} </li>'
+        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+
+    def weekheader(self, theweek):
+        w = '<tr><th>User</th>'
+        for day in theweek:
+            w += f'<th>{day.strftime("%Y-%m-%d")}</th>'
+        w += '</tr>'
+        return w
+
+    # formats a week as a tr
+    def formatweek(self, theweek):
+        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        week += self.weekheader(theweek)
+        users = {}
+        for event in events:
+            if event.user.id not in users.keys():
+                users[event.user.id] = event.user
+        for uid, user in users.items():
+            week += f'<tr><td style="height:30px;">{user}</td>'
+            for d in theweek:
+                week += self.formatday(d.day, events, uid)
+            week += '</tr>'
+        return week
