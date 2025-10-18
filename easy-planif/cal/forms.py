@@ -7,7 +7,7 @@ class EventForm(ModelForm):
     widgets = {
       'date': DateInput(format='%d-%m-%Y'),
     }
-    fields = '__all__'
+    fields = ['is_available', 'date']
 
   def __init__(self, *args, **kwargs):
     super(EventForm, self).__init__(*args, **kwargs)
