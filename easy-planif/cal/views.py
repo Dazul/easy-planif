@@ -19,7 +19,7 @@ class CalendarView(generic.ListView):
         d = get_date(self.request.GET.get('month', None))
 
         # Instantiate our calendar class with today's year and date
-        cal = Calendar(d.year, d.month)
+        cal = Calendar(self.request.user, d.year, d.month)
 
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatmonth(withyear=True)
@@ -54,6 +54,8 @@ def create_event(request, event_id=None):
     instance = Event()
     form = EventForm(request.POST or None, instance=instance)
     if request.POST and form.is_valid():
-        form.save()
+        event = form.save(commit=False)
+        event.user = request.user
+        event.save()
         return HttpResponse(status=201)
     return HttpResponseBadRequest()

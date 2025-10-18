@@ -2,9 +2,10 @@ from calendar import HTMLCalendar
 from .models import Event
 
 class Calendar(HTMLCalendar):
-    def __init__(self, year=None, month=None):
+    def __init__(self, current_user, year=None, month=None):
         self.year = year
         self.month = month
+        self.current_user = current_user
         super(Calendar, self).__init__()
 
     # formats a day as a td
@@ -12,11 +13,16 @@ class Calendar(HTMLCalendar):
     def formatday(self, day, events):
         events_per_day = events.filter(date__day=day)
         d = ''
-        if len(events_per_day) == 0:
+        event_found = False
+        for event in events_per_day:
+            if event.user == self.current_user:
+                event_found = True
+                if event.is_available:
+                    d += '<li>Available</li>'
+                else:
+                    d += f'<li> {event.tasks} </li>'
+        if not event_found:
             d += f'<div class="box" onclick="createAvailableEvent(\'{day}-{self.month}-{self.year}\')"></div>'
-        else:
-            for event in events_per_day:
-                d += f'<li> {event.title} </li>'
 
         if day != 0:
             return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
