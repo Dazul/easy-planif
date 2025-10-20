@@ -89,7 +89,7 @@ def next_week(m):
     return week_date
 
 
-def create_event(request, event_id=None):
+def create_event(request):
     instance = Event()
     form = EventForm(request.POST or None, instance=instance)
     if request.POST and form.is_valid():
