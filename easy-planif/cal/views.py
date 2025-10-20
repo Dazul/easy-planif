@@ -1,12 +1,14 @@
 import calendar
 from datetime import datetime, timedelta, date
-from django.http import HttpResponse, HttpResponseBadRequest
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.views import generic
 from django.utils.safestring import mark_safe
 
 from .models import Event
-from .utils import Calendar, GlobalCalendar
+from .utils import Calendar, GlobalCalendar, PlanningCalendar
 from .forms import EventForm
+from tasks.models import Tasks
+
 
 class CalendarView(generic.ListView):
     model = Event
@@ -46,6 +48,28 @@ class GlobalCalendarView(generic.ListView):
         cal = GlobalCalendar()
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatweek(week_dates)
+        context['calendar'] = mark_safe(html_cal)
+
+        context['prev_week'] = prev_week(today)
+        context['next_week'] = next_week(today)
+
+        return context
+
+class PlanningView(generic.ListView):
+    model = Event
+    template_name = 'cal/planning.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # use today's date for the calendar
+        today = get_date_week(self.request.GET.get('week_date', None))
+        monday = today - timedelta(days=today.weekday())
+
+        week_dates = [monday + timedelta(days=i) for i in range(7)]
+
+        cal = PlanningCalendar()
+        # Call the formatmonth method, which returns our calendar as a table
+        html_cal = cal.formatweek(week_dates,  context['view'].request)
         context['calendar'] = mark_safe(html_cal)
 
         context['prev_week'] = prev_week(today)
@@ -98,3 +122,13 @@ def create_event(request):
         event.save()
         return HttpResponse(status=201)
     return HttpResponseBadRequest()
+
+def update_event(request):
+    event = Event.objects.filter(id=request.POST.get('event_id'))[0]
+    event.is_available = False
+    event.tasks = Tasks.objects.filter(id=request.POST.get('task_id'))[0]
+    event.save()
+    return_path = "/planning"
+    if request.POST['week_date'] != 'None':
+        return_path += '?week_date=' + request.POST['week_date']
+    return HttpResponseRedirect(return_path)
