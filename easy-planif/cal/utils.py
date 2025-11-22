@@ -1,5 +1,7 @@
 from calendar import HTMLCalendar
-from tasks.models import Tasks
+
+from tasks.models import Tasks, Authorizations
+from accounts.models import CustomUser
 from .models import Event
 from django.template.loader import render_to_string
 
@@ -93,7 +95,11 @@ class PlanningCalendar(GlobalCalendar):
         super(GlobalCalendar, self).__init__()
 
     def define_form(self, event_id, request):
-        tasks = Tasks.objects.all()
+        tasks = []
+        user = CustomUser.objects.get(id=Event.objects.get(id=event_id).user_id)
+        auths = Authorizations.objects.all().filter(user=user)
+        for auth in auths:
+            tasks.append(Tasks.objects.get(id=auth.task_id))
         week_date = None
         if 'week_date' in request.GET.keys():
             week_date = request.GET['week_date']
