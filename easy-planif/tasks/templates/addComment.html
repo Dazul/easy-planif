@@ -18,8 +18,8 @@
   <div class="clearfix">
   <form action="/addComment" method="post">
     {% csrf_token %}
-    {{ form }}
-    <input type="submit" value="Submit">
+    {% bootstrap_form form %}
+    {% bootstrap_button button_type="submit" content="OK" %}
   </form>
   </div>
   {% endif %}
