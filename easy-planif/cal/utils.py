@@ -1,8 +1,10 @@
 from calendar import HTMLCalendar
+from tasks.models import Tasks
 from .models import Event
+from django.template.loader import render_to_string
 
 class Calendar(HTMLCalendar):
-    def __init__(self, current_user, year=None, month=None):
+    def __init__(self, current_user=None, year=None, month=None):
         self.year = year
         self.month = month
         self.current_user = current_user
@@ -83,5 +85,42 @@ class GlobalCalendar(Calendar):
             week += f'<tr><td style="height:30px;">{user}</td>'
             for d in theweek:
                 week += self.formatday(d.day, events, uid)
+            week += '</tr>'
+        return week
+
+class PlanningCalendar(GlobalCalendar):
+    def __init__(self):
+        super(GlobalCalendar, self).__init__()
+
+    def define_form(self, event_id, request):
+        tasks = Tasks.objects.all()
+        week_date = None
+        if 'week_date' in request.GET.keys():
+            week_date = request.GET['week_date']
+        return render_to_string("cal/dropdown_planning.html", {'event_id': event_id, 'tasks': tasks, 'week_date': week_date}, request=request)
+
+    def formatday(self, day, events, user_id, request):
+        events_per_day = events.filter(date__day=day, user__id=user_id)
+        d = ''
+        if len(events_per_day) != 0:
+            for event in events_per_day:
+                if event.is_available:
+                    d += self.define_form(event.id, request)
+                else:
+                    d += f'<li> {event.tasks} </li>'
+        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+
+    def formatweek(self, theweek, request):
+        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        week += self.weekheader(theweek)
+        users = {}
+        for event in events:
+            if event.user.id not in users.keys():
+                users[event.user.id] = event.user
+        for uid, user in users.items():
+            week += f'<tr><td style="height:30px;">{user}</td>'
+            for d in theweek:
+                week += self.formatday(d.day, events, uid, request)
             week += '</tr>'
         return week

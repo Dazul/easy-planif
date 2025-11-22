@@ -1,0 +1,11 @@
+<form action="/planning/event/update" method="POST">
+    {% csrf_token %}
+    <input type="hidden" name="event_id" value={{event_id}}>
+    <input type="hidden" name="week_date" value={{week_date}}>
+    <select name="task_id" id="task_id" required onchange="this.form.submit()">
+        <option value="" disabled selected>---</option>
+        {% for task in tasks %}
+            <option value="{{task.id}}">{{task.task_name}}</option>
+        {% endfor %}
+    </select>
+</form>
