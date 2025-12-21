@@ -98,12 +98,25 @@ class PlanningCalendar(GlobalCalendar):
         tasks = []
         user = CustomUser.objects.get(id=Event.objects.get(id=event_id).user_id)
         auths = Authorizations.objects.all().filter(user=user)
-        for auth in auths:
-            tasks.append(Tasks.objects.get(id=auth.task_id))
+        if 'task' in request.GET:
+            found = False
+            for auth in auths:
+                if str(auth.task_id) == request.GET['task']:
+                    tasks.append(Tasks.objects.get(id=auth.task_id))
+                    found = True
+                    break
+            if not found:
+                return '---'
+        else:
+            for auth in auths:
+                tasks.append(Tasks.objects.get(id=auth.task_id))
         week_date = None
+        task = None
         if 'week_date' in request.GET.keys():
             week_date = request.GET['week_date']
-        return render_to_string("cal/dropdown_planning.html", {'event_id': event_id, 'tasks': tasks, 'week_date': week_date}, request=request)
+        if 'task' in request.GET.keys():
+            task = request.GET['task']
+        return render_to_string("cal/dropdown_planning.html", {'event_id': event_id, 'tasks': tasks, 'week_date': week_date, 'task': task}, request=request)
 
     def formatday(self, day, events, user_id, request):
         events_per_day = events.filter(date__day=day, user__id=user_id)

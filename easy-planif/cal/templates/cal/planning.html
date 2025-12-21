@@ -1,8 +1,30 @@
 {% extends 'cal/base.html' %}
 {% block content %}
 <div class="clearfix">
+    <nav class="navbar">
 	<a class="btn btn-info left" href="{% url 'cal:planning' %}?{{ prev_week }}"> Previous Week </a>
+    <div class="dropdown">
+        <button class="btn btn-secondary dropdown-toggle center" type="button" id="dropdownTasks" data-bs-toggle="dropdown" aria-expanded="true">
+                Tasks
+        </button>
+        <ul class="dropdown-menu" aria-labelledby="dropdownTasks">
+            {% for task in tasks %}
+            <li><a id=task-{{task.id}} class="dropdown-item" href="#">{{ task }}</a></li>
+            <script>
+                // What you want to add – change this as needed
+                newParam = 'task';
+                newValue = {{ task.id | safe }};
+                // Build the new URL
+                url = new URL(window.location);
+                url.searchParams.set(newParam, newValue);
+                // Update the link’s href attribute
+                document.getElementById('task-{{task.id}}').href = url.toString();
+            </script>
+            {% endfor %}
+        </ul>
+    </div>
 	<a class="btn btn-info right" href="{% url 'cal:planning' %}?{{ next_week }}"> Next Week </a>
+    </nav>
 </div>
 {{ calendar }}
 {% endblock %}

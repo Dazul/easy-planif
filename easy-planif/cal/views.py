@@ -67,11 +67,13 @@ class PlanningView(generic.ListView):
 
         week_dates = [monday + timedelta(days=i) for i in range(7)]
 
+        tasks = Tasks.objects.all()
+
         cal = PlanningCalendar()
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatweek(week_dates,  context['view'].request)
         context['calendar'] = mark_safe(html_cal)
-
+        context['tasks'] = tasks
         context['prev_week'] = prev_week(today)
         context['next_week'] = next_week(today)
 
@@ -129,6 +131,13 @@ def update_event(request):
     event.tasks = Tasks.objects.filter(id=request.POST.get('task_id'))[0]
     event.save()
     return_path = "/planning"
+    has_week_date = False
     if request.POST['week_date'] != 'None':
         return_path += '?week_date=' + request.POST['week_date']
+        has_week_date = True
+    if request.POST['task'] != 'None':
+        if has_week_date:
+            return_path += '&task=' + request.POST['task']
+        else:
+            return_path += '?task=' + request.POST['task']
     return HttpResponseRedirect(return_path)
