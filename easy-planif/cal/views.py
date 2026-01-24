@@ -1,13 +1,14 @@
-import calendar
-from datetime import datetime, timedelta, date
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.views import generic
 from django.utils.safestring import mark_safe
+from django.shortcuts import render
 
-from .models import Event
-from .utils import Calendar, GlobalCalendar, PlanningCalendar
-from .forms import EventForm
+from .forms import EventForm, AddBookingTypeForm, AddBookingForm
+from .models import Event, BookingType, Booking
+from .utils import Calendar, GlobalCalendar, PlanningCalendar, BookingsCalendar
 from tasks.models import Tasks
+from datetime import timedelta
+from .helpers import get_date, prev_month, next_month, get_date_week, prev_week, next_week
 
 
 class CalendarView(generic.ListView):
@@ -79,41 +80,60 @@ class PlanningView(generic.ListView):
 
         return context
 
-def get_date(req_day):
-    if req_day:
-        year, month = (int(x) for x in req_day.split('-'))
-        return date(year, month, day=1)
-    return datetime.today()
+class BookingsView(generic.ListView):
+    model = Booking
+    template_name = 'cal/bookings.html'
 
-def get_date_week(req_day):
-    if req_day:
-        year, month, day = (int(x) for x in req_day.split('-'))
-        return date(year, month, day)
-    return datetime.today()
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
 
-def prev_month(m):
-    first = m.replace(day=1)
-    prev_month = first - timedelta(days=1)
-    month = 'month=' + str(prev_month.year) + '-' + str(prev_month.month)
-    return month
+        # use today's date for the calendar
+        d = get_date(self.request.GET.get('month', None))
 
-def next_month(m):
-    days_in_month = calendar.monthrange(m.year, m.month)[1]
-    last = m.replace(day=days_in_month)
-    next_month = last + timedelta(days=1)
-    month = 'month=' + str(next_month.year) + '-' + str(next_month.month)
-    return month
+        # Instantiate our calendar class with today's year and date
+        cal = BookingsCalendar(d.year, d.month)
 
-def prev_week(m):
-    week_date = m - timedelta(days=7)
-    week_date = 'week_date=' + str(week_date.year) + '-' + str(week_date.month) + '-' + str(week_date.day)
-    return week_date
+        # Call the formatmonth method, which returns our calendar as a table
+        html_cal = cal.formatmonth(withyear=True)
+        context['bookings'] = mark_safe(html_cal)
 
-def next_week(m):
-    week_date = m + timedelta(days=7)
-    week_date = 'week_date=' + str(week_date.year) + '-' + str(week_date.month) + '-' + str(week_date.day)
-    return week_date
+        context['prev_month'] = prev_month(d)
+        context['next_month'] = next_month(d)
 
+        return context
+
+def add_booking(request):
+    if request.method == "POST":
+        form = AddBookingForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect("/bookings")
+    else:
+        form = AddBookingForm()
+    return render(request, "cal/add_booking.html", {"form": form})
+
+class BookingTypeView(generic.ListView):
+    model = BookingType
+    template_name = 'cal/booking_type.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        d = '<ul class="list-group">'
+        for t in BookingType.objects.all():
+            d += f'<li class="list-group-item"> {t.booking_type} </li>'
+        d += '</ul>'
+        context['booking_types'] = mark_safe(d)
+        return context
+
+def add_booking_type(request):
+    if request.method == "POST":
+        form = AddBookingTypeForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect("/bookingTypes")
+    else:
+        form = AddBookingTypeForm()
+    return render(request, "cal/add_booking_type.html", {"form": form})
 
 def create_event(request):
     instance = Event()
