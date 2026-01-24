@@ -1,6 +1,7 @@
 from django.forms import ModelForm, DateInput
+from django import forms
+from .models import Event, BookingType, Booking
 
-from .models import Event, BookingType
 
 class EventForm(ModelForm):
   class Meta:
@@ -18,3 +19,14 @@ class AddBookingTypeForm(ModelForm):
     class Meta:
         model = BookingType
         fields = '__all__'
+
+class AddBookingForm(ModelForm):
+    class Meta:
+        model = Booking
+        widgets = {
+            'date': forms.DateInput(attrs={'type': 'date'}),
+            'date_report': forms.DateInput(attrs={'type': 'date'}),
+            'hour_start': forms.TimeInput(attrs={'type':'time','step':60}),
+            'hour_end': forms.TimeInput(attrs={'type':'time','step':60})
+        }
+        exclude = ['last_author']
