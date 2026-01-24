@@ -1,12 +1,13 @@
 import calendar
 from datetime import datetime, timedelta, date
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.shortcuts import render
 from django.views import generic
 from django.utils.safestring import mark_safe
 
-from .models import Event
+from .models import Event, BookingType
 from .utils import Calendar, GlobalCalendar, PlanningCalendar
-from .forms import EventForm
+from .forms import EventForm, AddBookingTypeForm
 from tasks.models import Tasks
 
 
@@ -78,6 +79,29 @@ class PlanningView(generic.ListView):
         context['next_week'] = next_week(today)
 
         return context
+
+class BookingTypeView(generic.ListView):
+    model = BookingType
+    template_name = 'cal/booking_type.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        d = '<ul class="list-group">'
+        for t in BookingType.objects.all():
+            d += f'<li class="list-group-item"> {t.booking_type} </li>'
+        d += '</ul>'
+        context['booking_types'] = mark_safe(d)
+        return context
+
+def add_booking_type(request):
+    if request.method == "POST":
+        form = AddBookingTypeForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return HttpResponseRedirect("/bookingTypes")
+    else:
+        form = AddBookingTypeForm()
+    return render(request, "cal/add_booking_type.html", {"form": form})
 
 def get_date(req_day):
     if req_day:

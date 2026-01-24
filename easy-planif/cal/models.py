@@ -1,5 +1,6 @@
 from accounts.models import CustomUser
 from django.core.exceptions import ValidationError
+from django.core.validators import MinValueValidator
 from django.db import models
 from tasks.models import Tasks, Authorizations
 
@@ -25,3 +26,6 @@ class Event(models.Model):
     def save(self, *args, **kwargs):
         self.full_clean()
         super().save(*args, **kwargs)
+
+class BookingType(models.Model):
+    booking_type = models.CharField(max_length=100)
