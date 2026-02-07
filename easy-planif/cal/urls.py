@@ -8,4 +8,8 @@ urlpatterns = [
     path('global_calendar', views.GlobalCalendarView.as_view(), name='global_calendar'),
     path('planning', views.PlanningView.as_view(), name='planning'),
     path('planning/event/update', views.update_event, name='planning_event_update'),
+    path('bookingTypes', views.BookingTypeView.as_view(), name='booking_type'),
+    path('addBookingType', views.add_booking_type, name='booking_type'),
+    path('bookings', views.BookingsView.as_view(), name='bookings'),
+    path('addBooking', views.add_booking, name='add_booking'),
 ]

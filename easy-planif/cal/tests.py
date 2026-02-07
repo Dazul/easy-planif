@@ -1,10 +1,11 @@
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from accounts.models import CustomUser
-from datetime import datetime, timezone
+from datetime import datetime, timezone, date, time
 
 from tasks.models import Tasks, Authorizations
-from .models import Event
+from .models import Event, Booking
+
 
 class EventCreateTest(TestCase):
     def setUp(self):
@@ -103,4 +104,144 @@ class EventUnauthorizedTest(TestCase):
         ev1.is_available = False
         with self.assertRaises(Exception) as context:
             ev1.save()
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class CreateBookingTest(TestCase):
+     def test_booking_creation(self):
+         _ = Booking.objects.create(
+         booking_name="b1",
+         date = date(2019, 10, 5),
+         hour_start = time(hour=10, minute=0, second=0),
+         hour_end = time(hour=20, minute=0, second=0),
+         group_leader_name = "Boby",
+         group_leader_address = "home",
+         group_leader_email = "boby@home.com",
+         nbr_adult = 10,
+         nbr_child = 10,
+         nbr_wheelchair = 0,
+         price_adult = 10,
+         price_child = 10,
+         meal_included = False,
+         meal_price_adult = 12,
+         meal_price_child = 6,
+         price_total = 100,
+         )
+
+class CreateBadTimeBookingTest(TestCase):
+     def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            _ = Booking.objects.create(
+                booking_name="b1",
+                date=date(2019, 10, 5),
+                hour_start=time(hour=20, minute=0, second=0),
+                hour_end=time(hour=10, minute=0, second=0),
+                group_leader_name="Boby",
+                group_leader_address="home",
+                group_leader_email="boby@home.com",
+                nbr_adult=10,
+                nbr_child=10,
+                nbr_wheelchair=0,
+                price_adult=10,
+                price_child=10,
+                meal_included=False,
+                meal_price_adult=12,
+                meal_price_child=6,
+                price_total=100,
+            )
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+
+class CreateNegativePriceAdultBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            _ = Booking.objects.create(
+                booking_name="b1",
+                date=date(2019, 10, 5),
+                hour_start=time(hour=10, minute=0, second=0),
+                hour_end=time(hour=20, minute=0, second=0),
+                group_leader_name="Boby",
+                group_leader_address="home",
+                group_leader_email="boby@home.com",
+                nbr_adult=10,
+                nbr_child=10,
+                nbr_wheelchair=0,
+                price_adult=-10,
+                price_child=10,
+                meal_included=False,
+                meal_price_adult=12,
+                meal_price_child=6,
+                price_total=100,
+            )
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+
+class CreateNegativePriceKidBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            _ = Booking.objects.create(
+                booking_name="b1",
+                date=date(2019, 10, 5),
+                hour_start=time(hour=10, minute=0, second=0),
+                hour_end=time(hour=20, minute=0, second=0),
+                group_leader_name="Boby",
+                group_leader_address="home",
+                group_leader_email="boby@home.com",
+                nbr_adult=10,
+                nbr_child=10,
+                nbr_wheelchair=0,
+                price_adult=10,
+                price_child=-10,
+                meal_included=False,
+                meal_price_adult=12,
+                meal_price_child=6,
+                price_total=100,
+            )
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+
+class CreateNegativePriceMealAdultBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            _ = Booking.objects.create(
+                booking_name="b1",
+                date=date(2019, 10, 5),
+                hour_start=time(hour=10, minute=0, second=0),
+                hour_end=time(hour=20, minute=0, second=0),
+                group_leader_name="Boby",
+                group_leader_address="home",
+                group_leader_email="boby@home.com",
+                nbr_adult=10,
+                nbr_child=10,
+                nbr_wheelchair=0,
+                price_adult=10,
+                price_child=10,
+                meal_included=False,
+                meal_price_adult=-12,
+                meal_price_child=6,
+                price_total=100,
+            )
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+
+class CreateNegativePriceMealKidBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            _ = Booking.objects.create(
+                booking_name="b1",
+                date=date(2019, 10, 5),
+                hour_start=time(hour=10, minute=0, second=0),
+                hour_end=time(hour=20, minute=0, second=0),
+                group_leader_name="Boby",
+                group_leader_address="home",
+                group_leader_email="boby@home.com",
+                nbr_adult=10,
+                nbr_child=10,
+                nbr_wheelchair=0,
+                price_adult=10,
+                price_child=10,
+                meal_included=False,
+                meal_price_adult=12,
+                meal_price_child=-6,
+                price_total=100,
+            )
         self.assertTrue(isinstance(context.exception, ValidationError))
