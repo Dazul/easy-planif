@@ -1,4 +1,5 @@
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.contrib.auth.decorators import permission_required
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.shortcuts import render
@@ -135,6 +136,7 @@ def add_booking_type(request):
         form = AddBookingTypeForm()
     return render(request, "cal/add_booking_type.html", {"form": form})
 
+@permission_required('cal.add_availability', raise_exception=True)
 def create_event(request):
     instance = Event()
     form = EventForm(request.POST or None, instance=instance)
@@ -145,6 +147,7 @@ def create_event(request):
         return HttpResponse(status=201)
     return HttpResponseBadRequest()
 
+@permission_required('cal.assign_task', raise_exception=True)
 def update_event(request):
     event = Event.objects.filter(id=request.POST.get('event_id'))[0]
     event.is_available = False
