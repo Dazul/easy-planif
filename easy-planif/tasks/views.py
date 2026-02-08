@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
@@ -31,9 +33,11 @@ class TasksView(generic.ListView):
         context['tasks'] = mark_safe(d)
         return context
 
-class CommentsView(generic.ListView):
+class CommentsView(PermissionRequiredMixin, generic.ListView):
     model = Comment
     template_name = 'comments.html'
+    permission_required = 'task.Trainer'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -43,9 +47,11 @@ class CommentsView(generic.ListView):
         context['comments'] = mark_safe(d)
         return context
 
-class AuthorizationsView(generic.ListView):
+class AuthorizationsView(PermissionRequiredMixin, generic.ListView):
     model = Authorizations
     template_name = 'authorizations.html'
+    permission_required = 'task.Trainer'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -85,6 +91,7 @@ def add_task(request):
         form = AddTaskForm()
     return render(request, "addTask.html", {"form": form})
 
+@permission_required('task.Trainer', raise_exception=True)
 def add_authorization(request):
     if request.method == "POST":
         form = AddAuthorizationForm(request.POST)
@@ -95,6 +102,7 @@ def add_authorization(request):
         form = AddAuthorizationForm()
     return render(request, "addAuthorization.html", {"form": form})
 
+@permission_required('task.Trainer', raise_exception=True)
 def add_comment(request):
     if request.method == "POST":
         form = AddCommentForm(request.POST)
