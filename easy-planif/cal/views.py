@@ -1,8 +1,12 @@
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.contrib.auth.decorators import permission_required
+from django.contrib.admin.views.decorators import staff_member_required
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 
 from .forms import EventForm, AddBookingTypeForm, AddBookingForm
 from .models import Event, BookingType, Booking
@@ -117,6 +121,12 @@ class BookingTypeView(generic.ListView):
     model = BookingType
     template_name = 'cal/booking_type.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         d = '<ul class="list-group">'
@@ -126,6 +136,7 @@ class BookingTypeView(generic.ListView):
         context['booking_types'] = mark_safe(d)
         return context
 
+@staff_member_required
 def add_booking_type(request):
     if request.method == "POST":
         form = AddBookingTypeForm(request.POST)

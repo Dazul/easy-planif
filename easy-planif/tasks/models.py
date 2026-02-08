@@ -4,11 +4,6 @@ from accounts.models import CustomUser
 class Tasks(models.Model):
     task_name = models.CharField(max_length=50)
 
-    class Meta:
-        permissions = [
-            ('admin', 'Admin rights on tasks'),
-        ]
-
     def __str__(self):
         return self.task_name
 
@@ -24,11 +19,6 @@ class Authorizations(models.Model):
 
 class CommentType(models.Model):
     comment_type = models.CharField(max_length=50)
-
-    class Meta:
-        permissions = [
-            ('admin', 'Admin rights on tasks'),
-        ]
 
     def __str__(self):
         return self.comment_type

@@ -22,6 +22,7 @@
                 <li><a class="dropdown-item" href="/comments">comments</a></li>
             </ul>
         </div>
+      {% if user.is_staff %}
         <div class="dropdown">
             <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton3" data-bs-toggle="dropdown" aria-expanded="true">
                 HR
@@ -42,6 +43,7 @@
                 <li><a class="dropdown-item" href="/commentTypes">comment type</a></li>
             </ul>
         </div>
+      {% endif %}
         <div class="dropdown">
             <form action="{% url 'logout' %}" method="post">
                 {% csrf_token %}

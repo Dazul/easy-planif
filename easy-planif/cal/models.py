@@ -36,11 +36,6 @@ class Event(models.Model):
 class BookingType(models.Model):
     booking_type = models.CharField(max_length=100)
 
-    class Meta:
-        permissions = [
-            ('bookings_admin', 'Admin bookings'),
-        ]
-
     def __str__(self):
         return self.booking_type
 
