@@ -3,7 +3,9 @@
 <div class="clearfix">
     <nav class="navbar">
 	<a class="btn btn-info left" href="{% url 'cal:bookings' %}?{{ prev_month }}"> Previous Month </a>
+    {% if perms.cal.bookings_view %}
     <a class="btn btn-secondary center" href=addBooking> Add booking </a>
+    {% endif %}
 	<a class="btn btn-info right" href="{% url 'cal:bookings' %}?{{ next_month }}"> Next Month </a>
     </nav>
 </div>

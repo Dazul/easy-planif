@@ -89,6 +89,12 @@ class BookingsView(generic.ListView):
     model = Booking
     template_name = 'cal/bookings.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.has_perm("cal.bookings_view"):
+            raise PermissionDenied("Unauthorized")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -107,6 +113,7 @@ class BookingsView(generic.ListView):
 
         return context
 
+@permission_required('cal.bookings_manager', raise_exception=True)
 def add_booking(request):
     if request.method == "POST":
         form = AddBookingForm(request.POST)
