@@ -154,7 +154,6 @@ def add_booking_type(request):
         form = AddBookingTypeForm()
     return render(request, "cal/add_booking_type.html", {"form": form})
 
-@permission_required('cal.add_availability', raise_exception=True)
 def create_event(request):
     instance = Event()
     form = EventForm(request.POST or None, instance=instance)

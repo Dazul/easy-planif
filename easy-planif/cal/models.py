@@ -12,7 +12,6 @@ class Event(models.Model):
 
     class Meta:
         permissions = [
-            ('add_availability', 'Add personal availability'),
             ('assign_task', 'Assign a Task'),
         ]
 
