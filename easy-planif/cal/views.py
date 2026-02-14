@@ -1,6 +1,7 @@
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
 from django.contrib.auth.decorators import permission_required
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.shortcuts import render
@@ -85,15 +86,11 @@ class PlanningView(generic.ListView):
 
         return context
 
-class BookingsView(generic.ListView):
+class BookingsView(PermissionRequiredMixin, generic.ListView):
     model = Booking
     template_name = 'cal/bookings.html'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.has_perm("cal.bookings_view"):
-            raise PermissionDenied("Unauthorized")
-        return super().dispatch(request, *args, **kwargs)
+    permission_required = 'task.Trainer'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
