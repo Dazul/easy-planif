@@ -10,6 +10,11 @@ class Event(models.Model):
     is_available = models.BooleanField(default=True)
     date = models.DateTimeField()
 
+    class Meta:
+        permissions = [
+            ('assign_task', 'Assign a Task'),
+        ]
+
     def clean(self):
         super().clean()
 
@@ -57,6 +62,12 @@ class Booking(models.Model):
     comments = models.TextField(blank=True, null=True)
     meal_comments = models.TextField(blank=True, null=True)
     last_author = models.ForeignKey(CustomUser, on_delete=models.SET_NULL, blank=True, null=True)
+
+    class Meta:
+        permissions = [
+            ('bookings_view', 'View bookings'),
+            ('bookings_manager', 'Manage bookings'),
+        ]
 
     def clean(self):
         super().clean()

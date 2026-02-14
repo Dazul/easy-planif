@@ -1,7 +1,13 @@
 from django.shortcuts import render
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import permission_required
+from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.http import HttpResponseRedirect
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 
 from .models import Tasks, Authorizations, CommentType, Comment
 from .forms import AddTaskForm, AddAuthorizationForm, AddCommentTypeForm, AddCommentForm
@@ -12,6 +18,12 @@ class TasksView(generic.ListView):
     model = Tasks
     template_name = 'tasks.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         d = '<ul class="list-group">'
@@ -21,9 +33,11 @@ class TasksView(generic.ListView):
         context['tasks'] = mark_safe(d)
         return context
 
-class CommentsView(generic.ListView):
+class CommentsView(PermissionRequiredMixin, generic.ListView):
     model = Comment
     template_name = 'comments.html'
+    permission_required = 'task.Trainer'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -33,9 +47,11 @@ class CommentsView(generic.ListView):
         context['comments'] = mark_safe(d)
         return context
 
-class AuthorizationsView(generic.ListView):
+class AuthorizationsView(PermissionRequiredMixin, generic.ListView):
     model = Authorizations
     template_name = 'authorizations.html'
+    permission_required = 'task.Trainer'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -49,6 +65,12 @@ class CommentTypeView(generic.ListView):
     model = CommentType
     template_name = 'commentTypes.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         d = '<ul class="list-group">'
@@ -58,6 +80,7 @@ class CommentTypeView(generic.ListView):
         context['comment_types'] = mark_safe(d)
         return context
 
+@staff_member_required
 def add_task(request):
     if request.method == "POST":
         form = AddTaskForm(request.POST)
@@ -68,6 +91,7 @@ def add_task(request):
         form = AddTaskForm()
     return render(request, "addTask.html", {"form": form})
 
+@permission_required('task.Trainer', raise_exception=True)
 def add_authorization(request):
     if request.method == "POST":
         form = AddAuthorizationForm(request.POST)
@@ -78,6 +102,7 @@ def add_authorization(request):
         form = AddAuthorizationForm()
     return render(request, "addAuthorization.html", {"form": form})
 
+@permission_required('task.Trainer', raise_exception=True)
 def add_comment(request):
     if request.method == "POST":
         form = AddCommentForm(request.POST)
@@ -90,6 +115,7 @@ def add_comment(request):
         form = AddCommentForm()
     return render(request, "addComment.html", {"form": form})
 
+@staff_member_required
 def add_comment_type(request):
     if request.method == "POST":
         form = AddCommentTypeForm(request.POST)

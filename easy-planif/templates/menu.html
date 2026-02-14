@@ -9,10 +9,15 @@
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
                 <li><a class="dropdown-item" href="/calendar">personal calendar</a></li>
                 <li><a class="dropdown-item" href="/global_calendar">global calendar</a></li>
+                {% if perms.cal.assign_task %}
                 <li><a class="dropdown-item" href="/planning">planning</a></li>
+                {% endif %}
+                {% if perms.cal.bookings_manager %}
                 <li><a class="dropdown-item" href="/bookings">bookings</a></li>
+                {% endif %}
             </ul>
         </div>
+      {% if perms.tasks.Trainer %}
         <div class="dropdown">
             <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton2" data-bs-toggle="dropdown" aria-expanded="true">
                 Authorizations
@@ -22,6 +27,8 @@
                 <li><a class="dropdown-item" href="/comments">comments</a></li>
             </ul>
         </div>
+      {% endif %}
+      {% if user.is_staff %}
         <div class="dropdown">
             <button class="btn btn-secondary dropdown-toggle" type="button" id="dropdownMenuButton3" data-bs-toggle="dropdown" aria-expanded="true">
                 HR
@@ -42,6 +49,7 @@
                 <li><a class="dropdown-item" href="/commentTypes">comment type</a></li>
             </ul>
         </div>
+      {% endif %}
         <div class="dropdown">
             <form action="{% url 'logout' %}" method="post">
                 {% csrf_token %}

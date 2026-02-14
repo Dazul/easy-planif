@@ -1,7 +1,13 @@
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.contrib.auth.decorators import permission_required
+from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.mixins import PermissionRequiredMixin
 from django.views import generic
 from django.utils.safestring import mark_safe
 from django.shortcuts import render
+from django.utils.decorators import method_decorator
+from django.contrib.auth.decorators import login_required
+from django.core.exceptions import PermissionDenied
 
 from .forms import EventForm, AddBookingTypeForm, AddBookingForm
 from .models import Event, BookingType, Booking
@@ -56,9 +62,11 @@ class GlobalCalendarView(generic.ListView):
 
         return context
 
-class PlanningView(generic.ListView):
+class PlanningView(PermissionRequiredMixin, generic.ListView):
     model = Event
     template_name = 'cal/planning.html'
+    permission_required = 'cal.assign_task'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -80,9 +88,11 @@ class PlanningView(generic.ListView):
 
         return context
 
-class BookingsView(generic.ListView):
+class BookingsView(PermissionRequiredMixin, generic.ListView):
     model = Booking
     template_name = 'cal/bookings.html'
+    permission_required = 'cal.bookings_view'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -102,6 +112,7 @@ class BookingsView(generic.ListView):
 
         return context
 
+@permission_required('cal.bookings_manager', raise_exception=True)
 def add_booking(request):
     if request.method == "POST":
         form = AddBookingForm(request.POST)
@@ -116,6 +127,12 @@ class BookingTypeView(generic.ListView):
     model = BookingType
     template_name = 'cal/booking_type.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         d = '<ul class="list-group">'
@@ -125,6 +142,7 @@ class BookingTypeView(generic.ListView):
         context['booking_types'] = mark_safe(d)
         return context
 
+@staff_member_required
 def add_booking_type(request):
     if request.method == "POST":
         form = AddBookingTypeForm(request.POST)
@@ -145,6 +163,7 @@ def create_event(request):
         return HttpResponse(status=201)
     return HttpResponseBadRequest()
 
+@permission_required('cal.assign_task', raise_exception=True)
 def update_event(request):
     event = Event.objects.filter(id=request.POST.get('event_id'))[0]
     event.is_available = False
