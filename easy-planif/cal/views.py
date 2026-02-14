@@ -62,9 +62,11 @@ class GlobalCalendarView(generic.ListView):
 
         return context
 
-class PlanningView(generic.ListView):
+class PlanningView(PermissionRequiredMixin, generic.ListView):
     model = Event
     template_name = 'cal/planning.html'
+    permission_required = 'cal.assign_task'
+    raise_exception = True
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -89,7 +91,7 @@ class PlanningView(generic.ListView):
 class BookingsView(PermissionRequiredMixin, generic.ListView):
     model = Booking
     template_name = 'cal/bookings.html'
-    permission_required = 'task.Trainer'
+    permission_required = 'cal.bookings_view'
     raise_exception = True
 
     def get_context_data(self, **kwargs):

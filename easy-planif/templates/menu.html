@@ -9,7 +9,9 @@
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton1">
                 <li><a class="dropdown-item" href="/calendar">personal calendar</a></li>
                 <li><a class="dropdown-item" href="/global_calendar">global calendar</a></li>
+                {% if perms.cal.assign_task %}
                 <li><a class="dropdown-item" href="/planning">planning</a></li>
+                {% endif %}
                 {% if perms.cal.bookings_manager %}
                 <li><a class="dropdown-item" href="/bookings">bookings</a></li>
                 {% endif %}
