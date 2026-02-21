@@ -1,13 +1,11 @@
-<!-- templates/home.html -->
-{% extends "base.html" %}
-
-{% block title %}Home{% endblock %}
-
-{% block content %}
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
 {% if user.is_authenticated %}
-Hi {{ user.username }}!
+<meta http-equiv="refresh" content="0; url='/calendar'" />
 {% else %}
-<p>You are not logged in</p>
-<a href="{% url 'login' %}">Log In</a>
+<meta http-equiv="refresh" content="0; url='{% url 'login' %}'" />
 {% endif %}
-{% endblock %}
+</head>
+</html>
