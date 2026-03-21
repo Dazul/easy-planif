@@ -1,4 +1,4 @@
-from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect
+from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, HttpResponseForbidden
 from django.contrib.auth.decorators import permission_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import PermissionRequiredMixin
@@ -15,7 +15,6 @@ from .utils import Calendar, GlobalCalendar, PlanningCalendar, BookingsCalendar
 from tasks.models import Tasks
 from datetime import timedelta
 from .helpers import get_date, prev_month, next_month, get_date_week, prev_week, next_week
-
 
 class CalendarView(generic.ListView):
     model = Event
@@ -180,3 +179,11 @@ def update_event(request):
         else:
             return_path += '?task=' + request.POST['task']
     return HttpResponseRedirect(return_path)
+
+def toggle_replacement(request):
+    event = Event.objects.filter(id=request.GET.get('event_id'))[0]
+    if event.user == request.user and not event.is_available:
+        event.is_replaceable = not event.is_replaceable
+        event.save()
+        return HttpResponseRedirect("/calendar")
+    return HttpResponseForbidden()

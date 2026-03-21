@@ -24,7 +24,8 @@ class Calendar(HTMLCalendar):
                 if event.is_available:
                     d += '<li>Available</li>'
                 else:
-                    d += f'<li> {event.tasks} </li>'
+                    rep = "(R)" if event.is_replaceable else ""
+                    d += f'<li> <a href="toggle_replacement?event_id={event.id}">{event.tasks} {rep}</a> </li>'
         if not event_found:
             d += f'<div class="box" onclick="createAvailableEvent(\'{day}-{self.month}-{self.year}\')"></div>'
 

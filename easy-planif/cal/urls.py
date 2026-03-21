@@ -12,4 +12,5 @@ urlpatterns = [
     path('addBookingType', views.add_booking_type, name='booking_type'),
     path('bookings', views.BookingsView.as_view(), name='bookings'),
     path('addBooking', views.add_booking, name='add_booking'),
+    path('calendar/toggle_replacement', views.toggle_replacement, name='toggle_replacement'),
 ]

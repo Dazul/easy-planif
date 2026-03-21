@@ -9,6 +9,7 @@ class Event(models.Model):
     tasks = models.ForeignKey(Tasks, on_delete=models.CASCADE, blank=True, null=True)
     is_available = models.BooleanField(default=True)
     date = models.DateTimeField()
+    is_replaceable = models.BooleanField(default=False)
 
     class Meta:
         permissions = [
