@@ -92,14 +92,17 @@ class GlobalCalendar(Calendar):
         return week
 
 class ReplacementCalendar(Calendar):
-    def __init__(self):
-        super(Calendar, self).__init__()
+    def __init__(self, current_user):
+        super().__init__(current_user)
 
     def formatday(self, day, events, user_id):
         events_per_day = events.filter(date__day=day, user__id=user_id)
         d = ''
         if len(events_per_day) != 0:
             for event in events_per_day:
+                if Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
+                    d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</li>'
+                else:
                     d += f'<li> {event.tasks} </li>'
         return f'<td style="height:30px;"><ul> {d} </ul></td>'
 

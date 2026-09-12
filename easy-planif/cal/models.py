@@ -15,13 +15,18 @@ class Event(models.Model):
         permissions = [
             ('assign_task', 'Assign a Task'),
         ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "date"],
+                name="unique_event_per_day_for_user",
+            )
+        ]
 
     def clean(self):
         super().clean()
 
         if self.tasks is not None and self.is_available:
             raise ValidationError({"content": "Event cannot have a task and be available"})
-
         if not self.is_available:
             if self.tasks is None:
                 raise ValidationError({"content": "Event must have a task is not available"})
