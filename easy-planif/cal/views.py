@@ -11,7 +11,7 @@ from django.core.exceptions import PermissionDenied
 
 from .forms import EventForm, AddBookingTypeForm, AddBookingForm
 from .models import Event, BookingType, Booking
-from .utils import Calendar, GlobalCalendar, PlanningCalendar, BookingsCalendar
+from .utils import Calendar, GlobalCalendar, PlanningCalendar, BookingsCalendar, ReplacementCalendar
 from tasks.models import Tasks
 from datetime import timedelta
 from .helpers import get_date, prev_month, next_month, get_date_week, prev_week, next_week
@@ -55,6 +55,29 @@ class GlobalCalendarView(generic.ListView):
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatweek(week_dates)
         context['calendar'] = mark_safe(html_cal)
+
+        context['prev_week'] = prev_week(today)
+        context['next_week'] = next_week(today)
+
+        return context
+
+class ReplacementCalendarView(generic.ListView):
+    model = Event
+    template_name = 'cal/replacements.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+
+        # use today's date for the calendar
+        today = get_date_week(self.request.GET.get('week_date', None))
+        monday = today - timedelta(days=today.weekday())
+
+        week_dates = [monday + timedelta(days=i) for i in range(7)]
+
+        cal = ReplacementCalendar()
+        # Call the formatmonth method, which returns our calendar as a table
+        html_cal = cal.formatweek(week_dates)
+        context['replacements'] = mark_safe(html_cal)
 
         context['prev_week'] = prev_week(today)
         context['next_week'] = next_week(today)
