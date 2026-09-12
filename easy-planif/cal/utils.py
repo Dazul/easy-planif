@@ -24,7 +24,8 @@ class Calendar(HTMLCalendar):
                 if event.is_available:
                     d += '<li>Available</li>'
                 else:
-                    d += f'<li> {event.tasks} </li>'
+                    rep = "(R)" if event.is_replaceable else ""
+                    d += f'<li> <a href="toggle_replacement?event_id={event.id}">{event.tasks} {rep}</a> </li>'
         if not event_found:
             d += f'<div class="box" onclick="createAvailableEvent(\'{day}-{self.month}-{self.year}\')"></div>'
 
@@ -77,6 +78,44 @@ class GlobalCalendar(Calendar):
     # formats a week as a tr
     def formatweek(self, theweek):
         events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        week += self.weekheader(theweek)
+        users = {}
+        for event in events:
+            if event.user.id not in users.keys():
+                users[event.user.id] = event.user
+        for uid, user in users.items():
+            week += f'<tr><td style="height:30px;">{user}</td>'
+            for d in theweek:
+                week += self.formatday(d.day, events, uid)
+            week += '</tr>'
+        return week
+
+class ReplacementCalendar(Calendar):
+    def __init__(self, current_user):
+        super().__init__(current_user)
+
+    def formatday(self, day, events, user_id):
+        events_per_day = events.filter(date__day=day, user__id=user_id)
+        d = ''
+        if len(events_per_day) != 0:
+            for event in events_per_day:
+                if Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
+                    d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</li>'
+                else:
+                    d += f'<li> {event.tasks} </li>'
+        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+
+    def weekheader(self, theweek):
+        w = '<tr><th>User</th>'
+        for day in theweek:
+            w += f'<th>{day.strftime("%Y-%m-%d")}</th>'
+        w += '</tr>'
+        return w
+
+    # formats a week as a tr
+    def formatweek(self, theweek):
+        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6], is_replaceable=True)
         week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
         week += self.weekheader(theweek)
         users = {}
