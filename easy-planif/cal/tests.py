@@ -106,6 +106,29 @@ class EventUnauthorizedTest(TestCase):
             ev1.save()
         self.assertTrue(isinstance(context.exception, ValidationError))
 
+class EventDoubleDateTest(TestCase):
+    def setUp(self):
+        CustomUser.objects.create_superuser(username='u1', email='', password='')
+        Tasks.objects.create(task_name="T1")
+        u1 = CustomUser.objects.get(username='u1')
+        t1 = Tasks.objects.get(task_name="T1")
+        Authorizations.objects.create(user=u1, task=t1)
+
+    def test_event_modify(self):
+        user = CustomUser.objects.get(username='u1')
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        Event.objects.create(user=user, date=d)
+        ev1 = Event.objects.get(user=user, date=d)
+        self.assertEqual(ev1.user.username, 'u1')
+        self.assertEqual(ev1.is_available, True)
+        task = Tasks.objects.get(task_name="T1")
+        ev1.tasks = task
+        ev1.is_available = False
+        ev1.save()
+        with self.assertRaises(Exception) as context:
+            Event.objects.create(user=user, date=d)
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
 class CreateBookingTest(TestCase):
      def test_booking_creation(self):
          _ = Booking.objects.create(
