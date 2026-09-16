@@ -10,7 +10,7 @@ class Calendar(HTMLCalendar):
         self.year = year
         self.month = month
         self.current_user = current_user
-        super(Calendar, self).__init__()
+        super().__init__()
 
     # formats a day as a td
     # filter events by day
@@ -55,7 +55,7 @@ class Calendar(HTMLCalendar):
 
 class GlobalCalendar(Calendar):
     def __init__(self):
-        super(Calendar, self).__init__()
+        super().__init__()
 
     def formatday(self, day, events, user_id):
         events_per_day = events.filter(date__day=day, user__id=user_id)
@@ -131,7 +131,7 @@ class ReplacementCalendar(Calendar):
 
 class PlanningCalendar(GlobalCalendar):
     def __init__(self):
-        super(GlobalCalendar, self).__init__()
+        super().__init__()
 
     def define_form(self, event_id, request):
         tasks = []
