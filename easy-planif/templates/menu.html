@@ -13,9 +13,6 @@
                 {% if perms.cal.assign_task %}
                 <li><a class="dropdown-item" href="/planning">planning</a></li>
                 {% endif %}
-                {% if perms.cal.bookings_manager %}
-                <li><a class="dropdown-item" href="/bookings">bookings</a></li>
-                {% endif %}
             </ul>
         </div>
       {% if perms.tasks.Trainer %}
@@ -46,7 +43,6 @@
             <ul class="dropdown-menu" aria-labelledby="dropdownMenuButton4">
                 <li><a class="dropdown-item" href="/users">users</a></li>
                 <li><a class="dropdown-item" href="/tasks">tasks</a></li>
-                <li><a class="dropdown-item" href="/bookingTypes">booking type</a></li>
                 <li><a class="dropdown-item" href="/commentTypes">comment type</a></li>
             </ul>
         </div>

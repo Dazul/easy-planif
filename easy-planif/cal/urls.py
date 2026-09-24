@@ -10,9 +10,5 @@ urlpatterns = [
     path('replacements/replace', views.replace, name='replace'),
     path('planning', views.PlanningView.as_view(), name='planning'),
     path('planning/event/update', views.update_event, name='planning_event_update'),
-    path('bookingTypes', views.BookingTypeView.as_view(), name='booking_type'),
-    path('addBookingType', views.add_booking_type, name='booking_type'),
-    path('bookings', views.BookingsView.as_view(), name='bookings'),
-    path('addBooking', views.add_booking, name='add_booking'),
     path('calendar/toggle_replacement', views.toggle_replacement, name='toggle_replacement'),
 ]

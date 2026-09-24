@@ -9,9 +9,9 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 
-from .forms import EventForm, AddBookingTypeForm, AddBookingForm
-from .models import Event, BookingType, Booking
-from .utils import Calendar, GlobalCalendar, PlanningCalendar, BookingsCalendar, ReplacementCalendar
+from .forms import EventForm
+from .models import Event
+from .utils import Calendar, GlobalCalendar, PlanningCalendar, ReplacementCalendar
 from tasks.models import Tasks, Authorizations
 from datetime import timedelta
 from .helpers import get_date, prev_month, next_month, get_date_week, prev_week, next_week
@@ -109,71 +109,6 @@ class PlanningView(PermissionRequiredMixin, generic.ListView):
         context['next_week'] = next_week(today)
 
         return context
-
-class BookingsView(PermissionRequiredMixin, generic.ListView):
-    model = Booking
-    template_name = 'cal/bookings.html'
-    permission_required = 'cal.bookings_view'
-    raise_exception = True
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-
-        # use today's date for the calendar
-        d = get_date(self.request.GET.get('month', None))
-
-        # Instantiate our calendar class with today's year and date
-        cal = BookingsCalendar(d.year, d.month)
-
-        # Call the formatmonth method, which returns our calendar as a table
-        html_cal = cal.formatmonth(withyear=True)
-        context['bookings'] = mark_safe(html_cal)
-
-        context['prev_month'] = prev_month(d)
-        context['next_month'] = next_month(d)
-
-        return context
-
-@permission_required('cal.bookings_manager', raise_exception=True)
-def add_booking(request):
-    if request.method == "POST":
-        form = AddBookingForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return HttpResponseRedirect("/bookings")
-    else:
-        form = AddBookingForm()
-    return render(request, "cal/add_booking.html", {"form": form})
-
-class BookingTypeView(generic.ListView):
-    model = BookingType
-    template_name = 'cal/booking_type.html'
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied("Staff members only.")
-        return super().dispatch(request, *args, **kwargs)
-
-    def get_context_data(self, **kwargs):
-        context = super().get_context_data(**kwargs)
-        d = '<ul class="list-group">'
-        for t in BookingType.objects.all():
-            d += f'<li class="list-group-item"> {t.booking_type} </li>'
-        d += '</ul>'
-        context['booking_types'] = mark_safe(d)
-        return context
-
-@staff_member_required
-def add_booking_type(request):
-    if request.method == "POST":
-        form = AddBookingTypeForm(request.POST)
-        if form.is_valid():
-            form.save()
-            return HttpResponseRedirect("/bookingTypes")
-    else:
-        form = AddBookingTypeForm()
-    return render(request, "cal/add_booking_type.html", {"form": form})
 
 def replace(request):
     event = Event.objects.filter(id=request.GET.get('event_id'))[0]
