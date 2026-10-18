@@ -1,0 +1,26 @@
+{% load static %}
+<!doctype html>
+<html lang="en">
+<head>
+  <!-- Required meta tags -->
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+  <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
+  <title>Working Time Management</title>
+  {% load django_bootstrap5 %}
+  {% bootstrap_css %}
+  {% bootstrap_javascript %}
+</head>
+<body>
+  <div class="container">
+  {% include "menu.html" %}
+  {% if user.is_authenticated %}
+    <h1>Working Time Management, you are authenticated.</h1>
+  {% else %}
+    <h1>Working Time Management, you are not authenticated.</h1>
+  {% endif %}
+  <div class="clearfix">
+    <p>Welcome, {{ user.username }}!</p>
+  </div>
+</body>
+</html>

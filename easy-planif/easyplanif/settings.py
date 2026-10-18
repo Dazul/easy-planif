@@ -42,6 +42,7 @@ INSTALLED_APPS = [
     'django_tables2',
     'cal',
     'tasks',
+    'hr',
 ]
 
 MIDDLEWARE = [
