@@ -468,6 +468,16 @@ class WorkEntryModelTest(TestCase):
         self.assertEqual(entry.notes, "")
         self.assertIsNone(entry.approved_by)
 
+    def test_break_defaults_to_thirty_minutes(self):
+        entry = WorkEntry(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+        )
+
+        self.assertEqual(entry.break_minutes, 30)
+
     def test_work_entry_str(self):
         entry = self.create_entry()
         entry.save()

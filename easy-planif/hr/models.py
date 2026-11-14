@@ -142,7 +142,7 @@ class WorkEntry(models.Model):
     work_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
-    break_minutes = models.PositiveIntegerField(default=0)
+    break_minutes = models.PositiveIntegerField(default=30)
     status = models.CharField(
         max_length=10,
         choices=Status.choices,
