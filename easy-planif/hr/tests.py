@@ -3,10 +3,12 @@ from datetime import date, time
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.test import TestCase
+from django.contrib import admin
 
 from accounts.models import CustomUser
 
 from .forms import EmployeeForm
+from .admin import EmployeeAdmin, PayrollPaymentAdmin, WorkEntryAdmin
 from .models import Employee, PayrollPayment, WorkEntry
 
 
@@ -109,6 +111,16 @@ class EmployeeListViewTest(TestCase):
         response = self.client.get("/hr/employees/")
 
         self.assertEqual(response.status_code, 403)
+
+
+class HRAdminRegistrationTest(TestCase):
+    def test_hr_models_are_registered_with_expected_admin_classes(self):
+        self.assertIsInstance(admin.site._registry[Employee], EmployeeAdmin)
+        self.assertIsInstance(admin.site._registry[WorkEntry], WorkEntryAdmin)
+        self.assertIsInstance(
+            admin.site._registry[PayrollPayment],
+            PayrollPaymentAdmin,
+        )
 
 
 class EmployeeCreateViewTest(TestCase):
