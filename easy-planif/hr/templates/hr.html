@@ -57,6 +57,7 @@
             <th>Worked hours</th>
             <th class="text-danger">Due</th>
             <th class="text-success">Paid</th>
+            <th>Action</th>
           </tr>
         </thead>
         <tbody>
@@ -67,9 +68,24 @@
               <td>{{ row.hours }}</td>
               <td class="text-danger">{{ row.due }}</td>
               <td class="text-success">{{ row.paid }}</td>
+              <td>
+                {% if row.due > row.paid %}
+                  <form method="post" class="d-flex gap-1">
+                    {% csrf_token %}
+                    <input type="hidden" name="employee_id" value="{{ row.employee.pk }}">
+                    <input type="date" name="payment_date" value="{{ row.date|date:'Y-m-d' }}"
+                           class="form-control form-control-sm" required>
+                    <input type="number" name="amount" value="{{ row.due|floatformat:2 }}"
+                           min="0.01" step="0.01" class="form-control form-control-sm" required>
+                    <button class="btn btn-sm btn-success" type="submit">Confirm</button>
+                  </form>
+                {% else %}
+                  <span class="text-success">Paid</span>
+                {% endif %}
+              </td>
             </tr>
           {% empty %}
-            <tr><td colspan="5">No approved work entry for this month.</td></tr>
+            <tr><td colspan="6">No approved work entry for this month.</td></tr>
           {% endfor %}
         </tbody>
         <tfoot>
@@ -80,7 +96,7 @@
             <td class="text-success">{{ payroll_total_paid }}</td>
           </tr>
           <tr class="fw-bold">
-            <td colspan="4">Balance</td>
+            <td colspan="5">Balance</td>
             <td>{{ payroll_balance }}</td>
           </tr>
         </tfoot>

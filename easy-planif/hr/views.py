@@ -6,7 +6,7 @@ from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
-from django.utils.timezone import localdate
+from django.utils.timezone import localdate, now
 from django.views import View
 
 from .models import Employee, PayrollPayment, WorkEntry
@@ -49,6 +49,34 @@ class PayrollSummaryView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
+        return self.render_summary(request)
+
+    def post(self, request):
+        employee = get_object_or_404(
+            Employee,
+            pk=request.POST.get("employee_id"),
+        )
+        try:
+            payment_date = date.fromisoformat(request.POST["payment_date"])
+            amount = Decimal(request.POST["amount"])
+        except (KeyError, TypeError, ValueError, ArithmeticError):
+            raise PermissionDenied("Invalid payroll payment data.")
+
+        period_month = date(payment_date.year, payment_date.month, 1)
+        PayrollPayment.objects.create(
+            employee=employee,
+            period_month=period_month,
+            payment_date=payment_date,
+            amount=amount,
+            notes=request.POST.get("notes", ""),
+            approved_by=request.user,
+            approved_at=now(),
+        )
+        return redirect(
+            f"{request.path}?year={period_month.year}&month={period_month.month}"
+        )
+
+    def render_summary(self, request):
         today = localdate()
         year = self._get_month_value(request, "year", today.year)
         month = self._get_month_value(request, "month", today.month)

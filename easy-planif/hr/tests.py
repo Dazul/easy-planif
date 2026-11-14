@@ -355,6 +355,29 @@ class PayrollSummaryViewTest(TestCase):
 
         self.assertEqual(response.status_code, 403)
 
+    def test_staff_can_confirm_payment_from_summary(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "payment_date": "2026-10-08",
+                "amount": "200.00",
+                "notes": "October payment",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/payroll/?year=2026&month=10")
+        payment = PayrollPayment.objects.get(
+            employee=self.employee,
+            payment_date=date(2026, 10, 8),
+            notes="October payment",
+        )
+        self.assertEqual(payment.amount, 200)
+        self.assertEqual(payment.approved_by, self.admin)
+        self.assertIsNotNone(payment.approved_at)
+
 
 class WorkEntryModelTest(TestCase):
     def setUp(self):
