@@ -148,11 +148,18 @@ class PayrollSummaryView(View):
                 entry.duration_hours * entry.employee.hourly_rate
             ).quantize(Decimal("0.01"))
 
+        payments_by_employee = {}
         for payment in payments:
-            key = (payment.employee_id, payment.payment_date)
-            row = rows_by_employee_date.get(key)
-            if row:
-                row["paid"] += payment.amount
+            payments_by_employee[payment.employee_id] = (
+                payments_by_employee.get(payment.employee_id, Decimal("0.00"))
+                + payment.amount
+            )
+
+        for row in rows_by_employee_date.values():
+            row["paid"] = payments_by_employee.get(
+                row["employee"].pk,
+                Decimal("0.00"),
+            )
 
         rows = sorted(
             rows_by_employee_date.values(),

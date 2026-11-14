@@ -436,7 +436,7 @@ class PayrollSummaryViewTest(TestCase):
         PayrollPayment.objects.create(
             employee=self.employee,
             period_month=date(2026, 10, 1),
-            payment_date=date(2026, 10, 8),
+            payment_date=date(2026, 10, 31),
             amount="50.00",
             approved_by=self.admin,
         )
@@ -451,6 +451,21 @@ class PayrollSummaryViewTest(TestCase):
         self.assertContains(response, "8.00")
         self.assertContains(response, "200.00")
         self.assertContains(response, "50.00")
+        self.assertContains(response, "150.00")
+
+    def test_payments_are_counted_even_on_non_worked_days(self):
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 20),
+            amount="100.00",
+            approved_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
         self.assertContains(response, "150.00")
 
     def test_non_staff_cannot_view_payroll_summary(self):
