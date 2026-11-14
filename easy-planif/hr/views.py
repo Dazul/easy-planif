@@ -148,6 +148,71 @@ class PayrollSummaryView(View):
             return default
 
 
+class EmployeePayrollView(View):
+    template_name = "hr.html"
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        employee = get_object_or_404(
+            Employee.objects.select_related("user"),
+            user=request.user,
+        )
+        today = localdate()
+        year = self._get_month_value(request, "year", today.year)
+        month = self._get_month_value(request, "month", today.month)
+        if month not in range(1, 13):
+            year, month = today.year, today.month
+
+        period_month = date(year, month, 1)
+        entries = WorkEntry.objects.filter(
+            employee=employee,
+            work_date__year=year,
+            work_date__month=month,
+            status=WorkEntry.Status.APPROVED,
+        )
+        payments = PayrollPayment.objects.filter(
+            employee=employee,
+            period_month=period_month,
+            approved_by__isnull=False,
+        )
+        total_hours = sum(
+            (entry.duration_hours for entry in entries),
+            Decimal("0.00"),
+        )
+        total_due = (total_hours * employee.hourly_rate).quantize(
+            Decimal("0.01")
+        )
+        total_paid = sum(
+            (payment.amount for payment in payments),
+            Decimal("0.00"),
+        )
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "show_employee_payroll": True,
+                "employee_payroll_month": period_month,
+                "employee_hourly_rate": employee.hourly_rate,
+                "employee_payments": payments,
+                "employee_total_hours": total_hours,
+                "employee_total_due": total_due,
+                "employee_total_paid": total_paid,
+                "employee_balance": total_due - total_paid,
+            },
+        )
+
+    @staticmethod
+    def _get_month_value(request, name, default):
+        try:
+            return int(request.GET.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+
 class WorkCalendarView(View):
     template_name = "hr.html"
     employee_only = False

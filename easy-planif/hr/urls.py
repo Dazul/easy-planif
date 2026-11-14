@@ -34,4 +34,9 @@ urlpatterns = [
         views.PayrollSummaryView.as_view(),
         name='payroll_summary',
     ),
+    path(
+        'hr/my-payroll/',
+        views.EmployeePayrollView.as_view(),
+        name='employee_payroll',
+    ),
 ]

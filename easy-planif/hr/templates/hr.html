@@ -45,6 +45,46 @@
           {% endfor %}
         </tbody>
       </table>
+    {% elif show_employee_payroll %}
+      <div class="d-flex justify-content-between align-items-center my-4">
+        <h1>My payroll - {{ employee_payroll_month|date:"F Y" }}</h1>
+      </div>
+      <p>Current hourly rate: <strong>{{ employee_hourly_rate }}</strong></p>
+      <p>Approved worked hours: <strong>{{ employee_total_hours }}</strong></p>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Payment date</th>
+            <th>Amount</th>
+            <th>Notes</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for payment in employee_payments %}
+            <tr>
+              <td>{{ payment.payment_date }}</td>
+              <td class="text-success">{{ payment.amount }}</td>
+              <td>{{ payment.notes|default:"-" }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="3">No payment received for this month.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="fw-bold">
+            <td>Totals</td>
+            <td class="text-success">{{ employee_total_paid }}</td>
+            <td></td>
+          </tr>
+          <tr class="fw-bold">
+            <td>Remaining balance</td>
+            <td class="{% if employee_balance < 0 %}text-success{% else %}text-danger{% endif %}">
+              {{ employee_balance }}
+            </td>
+            <td>Due: {{ employee_total_due }}</td>
+          </tr>
+        </tfoot>
+      </table>
     {% elif show_payroll_summary %}
       <div class="d-flex justify-content-between align-items-center my-4">
         <h1>Payroll - {{ payroll_month|date:"F Y" }}</h1>

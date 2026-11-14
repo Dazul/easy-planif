@@ -379,6 +379,64 @@ class PayrollSummaryViewTest(TestCase):
         self.assertIsNotNone(payment.approved_at)
 
 
+class EmployeePayrollViewTest(TestCase):
+    def setUp(self):
+        self.employee_user = CustomUser.objects.create_user(
+            username="my-payroll-employee",
+            password="password",
+        )
+        self.other_user = CustomUser.objects.create_user(
+            username="other-payroll-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="MYPAY001",
+            hourly_rate="25.00",
+            hired_on=date(2026, 1, 5),
+        )
+        other_employee = Employee.objects.create(
+            user=self.other_user,
+            employee_number="MYPAY002",
+            hourly_rate="50.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="50.00",
+            approved_by=self.other_user,
+        )
+        PayrollPayment.objects.create(
+            employee=other_employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="999.00",
+            approved_by=self.other_user,
+        )
+
+    def test_employee_sees_own_payroll(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "25.00")
+        self.assertContains(response, "50.00")
+        self.assertContains(response, "200.00")
+        self.assertContains(response, "150.00")
+        self.assertNotContains(response, "999.00")
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(
