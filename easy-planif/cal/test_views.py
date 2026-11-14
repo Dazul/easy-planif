@@ -201,6 +201,28 @@ class PlanningRenderingTest(TestCase):
         self.assertContains(response, f'name="task_id" value="{self.t1.id}"')
         self.assertContains(response, ">T1</button>")
 
+    def test_if_needed_shows_info_and_assignment_form(self):
+        self.available.is_if_needed = True
+        self.available.save()
+        # no header task: dropdown plus the if-needed marker
+        response = self.client.get(
+            self.planning_url(week_date="2019-10-07")
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "If needed")
+        self.assertContains(response, "<select")
+
+    def test_if_needed_shows_quick_assign_with_info(self):
+        self.available.is_if_needed = True
+        self.available.save()
+        # header task selected: quick-assign button plus marker
+        response = self.client.get(
+            self.planning_url(week_date="2019-10-07", task=self.t1.id)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "If needed")
+        self.assertContains(response, "quick-assign")
+
     def test_header_task_unauthorized_user_renders_dashes(self):
         # 'other' holds no authorization for T1: their cell shows dashes
         # instead of the quick-assign box

@@ -79,3 +79,10 @@ a {
   border-radius: 3px;
   border-width: 1px;
 }
+
+.if-needed-info {
+  color: #6c757d;
+  font-style: italic;
+  font-size: 11px;
+  list-style: none;
+}
