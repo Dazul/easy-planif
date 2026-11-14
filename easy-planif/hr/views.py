@@ -1,5 +1,6 @@
 import calendar
 from datetime import date
+from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
@@ -8,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate
 from django.views import View
 
-from .models import Employee, WorkEntry
+from .models import Employee, PayrollPayment, WorkEntry
 
 
 class HRView(View):
@@ -36,6 +37,87 @@ class EmployeeListView(View):
                 "show_employee_list": True,
             },
         )
+
+
+class PayrollSummaryView(View):
+    template_name = "hr.html"
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        today = localdate()
+        year = self._get_month_value(request, "year", today.year)
+        month = self._get_month_value(request, "month", today.month)
+        if month not in range(1, 13):
+            year, month = today.year, today.month
+
+        period_month = date(year, month, 1)
+        entries = WorkEntry.objects.filter(
+            work_date__year=year,
+            work_date__month=month,
+            status=WorkEntry.Status.APPROVED,
+        ).select_related("employee", "employee__user")
+        payments = PayrollPayment.objects.filter(
+            period_month=period_month,
+            approved_by__isnull=False,
+        ).select_related("employee", "employee__user")
+
+        rows_by_employee_date = {}
+        for entry in entries:
+            key = (entry.employee_id, entry.work_date)
+            row = rows_by_employee_date.setdefault(
+                key,
+                {
+                    "date": entry.work_date,
+                    "employee": entry.employee,
+                    "hours": Decimal("0.00"),
+                    "due": Decimal("0.00"),
+                    "paid": Decimal("0.00"),
+                },
+            )
+            row["hours"] += entry.duration_hours
+            row["due"] += (
+                entry.duration_hours * entry.employee.hourly_rate
+            ).quantize(Decimal("0.01"))
+
+        for payment in payments:
+            key = (payment.employee_id, payment.payment_date)
+            row = rows_by_employee_date.get(key)
+            if row:
+                row["paid"] += payment.amount
+
+        rows = sorted(
+            rows_by_employee_date.values(),
+            key=lambda row: (row["date"], row["employee"].employee_number),
+        )
+        total_hours = sum((row["hours"] for row in rows), Decimal("0.00"))
+        total_due = sum((row["due"] for row in rows), Decimal("0.00"))
+        total_paid = sum((row["paid"] for row in rows), Decimal("0.00"))
+
+        return render(
+            request,
+            self.template_name,
+            {
+                "show_payroll_summary": True,
+                "payroll_month": period_month,
+                "payroll_rows": rows,
+                "payroll_total_hours": total_hours,
+                "payroll_total_due": total_due,
+                "payroll_total_paid": total_paid,
+                "payroll_balance": total_due - total_paid,
+            },
+        )
+
+    @staticmethod
+    def _get_month_value(request, name, default):
+        try:
+            return int(request.GET.get(name, default))
+        except (TypeError, ValueError):
+            return default
 
 
 class WorkCalendarView(View):

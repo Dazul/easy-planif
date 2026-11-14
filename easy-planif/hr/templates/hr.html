@@ -45,6 +45,46 @@
           {% endfor %}
         </tbody>
       </table>
+    {% elif show_payroll_summary %}
+      <div class="d-flex justify-content-between align-items-center my-4">
+        <h1>Payroll - {{ payroll_month|date:"F Y" }}</h1>
+      </div>
+      <table class="table table-striped">
+        <thead>
+          <tr>
+            <th>Date</th>
+            <th>Employee</th>
+            <th>Worked hours</th>
+            <th class="text-danger">Due</th>
+            <th class="text-success">Paid</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in payroll_rows %}
+            <tr>
+              <td>{{ row.date }}</td>
+              <td>{{ row.employee.user }}</td>
+              <td>{{ row.hours }}</td>
+              <td class="text-danger">{{ row.due }}</td>
+              <td class="text-success">{{ row.paid }}</td>
+            </tr>
+          {% empty %}
+            <tr><td colspan="5">No approved work entry for this month.</td></tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="fw-bold">
+            <td colspan="2">Total</td>
+            <td>{{ payroll_total_hours }}</td>
+            <td class="text-danger">{{ payroll_total_due }}</td>
+            <td class="text-success">{{ payroll_total_paid }}</td>
+          </tr>
+          <tr class="fw-bold">
+            <td colspan="4">Balance</td>
+            <td>{{ payroll_balance }}</td>
+          </tr>
+        </tfoot>
+      </table>
     {% elif show_work_day %}
       <div class="d-flex justify-content-between align-items-center my-4">
         <h1>{% if employee_day %}My work entries{% else %}Work entries{% endif %} for {{ work_date }}</h1>

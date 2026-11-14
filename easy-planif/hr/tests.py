@@ -303,6 +303,59 @@ class PayrollPaymentModelTest(TestCase):
             payment.save()
 
 
+class PayrollSummaryViewTest(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            username="summary-admin",
+            password="password",
+            is_staff=True,
+        )
+        employee_user = CustomUser.objects.create_user(
+            username="summary-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=employee_user,
+            employee_number="SUM001",
+            hourly_rate="25.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 8),
+            amount="50.00",
+            approved_by=self.admin,
+        )
+
+    def test_staff_can_view_monthly_payroll_summary(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "summary-employee")
+        self.assertContains(response, "8.00")
+        self.assertContains(response, "200.00")
+        self.assertContains(response, "50.00")
+        self.assertContains(response, "150.00")
+
+    def test_non_staff_cannot_view_payroll_summary(self):
+        self.client.force_login(self.employee.user)
+
+        response = self.client.get("/hr/payroll/")
+
+        self.assertEqual(response.status_code, 403)
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(
