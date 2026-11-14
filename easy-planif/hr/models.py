@@ -19,7 +19,6 @@ class Employee(models.Model):
         user: Utilisateur Django associé à l'employé.
         employee_number: Identifiant unique de l'employé.
         hourly_rate: Taux horaire de l'employé.
-        monthly_salary: Salaire mensuel éventuel de l'employé.
         hired_on: Date d'entrée de l'employé.
         left_on: Date de départ de l'employé.
         is_active: Indique si l'employé est actuellement actif.
@@ -37,13 +36,6 @@ class Employee(models.Model):
     hourly_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal(0))],
-    )
-    monthly_salary = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
         validators=[MinValueValidator(Decimal(0))],
     )
     hired_on = models.DateField()

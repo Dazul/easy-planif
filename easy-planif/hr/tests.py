@@ -33,7 +33,6 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(employee.hourly_rate, 25.50)
         self.assertTrue(employee.is_active)
         self.assertIsNone(employee.left_on)
-        self.assertIsNone(employee.monthly_salary)
 
     def test_employee_str(self):
         employee = self.create_employee()
