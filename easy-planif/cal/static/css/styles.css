@@ -67,3 +67,15 @@ a {
 .calendar a {
   cursor: pointer;
 }
+
+.quick-assign {
+  width: auto;
+  min-width: 0;
+  padding: 0px 8px;
+  font-size: 11px;
+  line-height: 25px;
+  height: 25px;
+  vertical-align: middle;
+  border-radius: 3px;
+  border-width: 1px;
+}
