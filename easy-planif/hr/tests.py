@@ -72,6 +72,44 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(Employee.objects.count(), 1)
 
 
+class EmployeeListViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="manager",
+            password="password",
+            is_staff=True,
+        )
+        self.employee_user = CustomUser.objects.create_user(
+            username="employee",
+            password="password",
+        )
+        Employee.objects.create(
+            user=self.employee_user,
+            employee_number="EMP001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+            left_on=date(2026, 3, 1),
+            is_active=False,
+        )
+
+    def test_staff_can_view_employees(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/employees/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "EMP001")
+        self.assertContains(response, "25.50")
+        self.assertContains(response, "Inactive")
+
+    def test_non_staff_cannot_view_employees(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/employees/")
+
+        self.assertEqual(response.status_code, 403)
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(

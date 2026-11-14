@@ -4,4 +4,9 @@ from . import views
 app_name = 'hr'
 urlpatterns = [
     path('hr/', views.HRView.as_view(), name='hr_view'),
+    path(
+        'hr/employees/',
+        views.EmployeeListView.as_view(),
+        name='employee_list',
+    ),
 ]
