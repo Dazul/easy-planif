@@ -106,6 +106,44 @@ class EventUnauthorizedTest(TestCase):
             ev1.save()
         self.assertTrue(isinstance(context.exception, ValidationError))
 
+class EventIfNeededTest(TestCase):
+    def setUp(self):
+        CustomUser.objects.create_superuser(username='u1', email='', password='')
+
+    def test_available_if_needed(self):
+        user = CustomUser.objects.get(username='u1')
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        Event.objects.create(user=user, date=d, is_if_needed=True)
+        ev1 = Event.objects.get(user=user, date=d)
+        self.assertEqual(ev1.is_available, True)
+        self.assertEqual(ev1.is_if_needed, True)
+
+    def test_if_needed_requires_available(self):
+        user = CustomUser.objects.get(username='u1')
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        ev = Event(user=user, date=d, is_available=False, is_if_needed=True)
+        with self.assertRaises(Exception) as context:
+            ev.save()
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+    def test_assign_task_clears_if_needed(self):
+        user = CustomUser.objects.get(username='u1')
+        Tasks.objects.create(task_name="T1")
+        t1 = Tasks.objects.get(task_name="T1")
+        Authorizations.objects.create(user=user, task=t1)
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        Event.objects.create(user=user, date=d, is_if_needed=True)
+        ev1 = Event.objects.get(user=user, date=d)
+        ev1.is_available = False
+        ev1.is_if_needed = False
+        ev1.tasks = t1
+        ev1.save()
+        ev2 = Event.objects.get(user=user, date=d)
+        self.assertEqual(ev2.is_available, False)
+        self.assertEqual(ev2.is_if_needed, False)
+        self.assertEqual(ev2.tasks.task_name, 'T1')
+
+
 class EventDoubleDateTest(TestCase):
     def setUp(self):
         CustomUser.objects.create_superuser(username='u1', email='', password='')

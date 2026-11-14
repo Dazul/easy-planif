@@ -55,12 +55,15 @@ a {
   margin: 15px;
 }
 
-.box {
-  height: 100%;
-  width: 100%;
+.free-day {
   cursor: pointer;
 }
 
-.box:hover {
+.free-day:hover {
   opacity: 0.7;
+  background-color: #e8f5f7;
+}
+
+.calendar a {
+  cursor: pointer;
 }

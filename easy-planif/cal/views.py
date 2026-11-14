@@ -131,6 +131,7 @@ def create_event(request):
 def update_event(request):
     event = Event.objects.filter(id=request.POST.get('event_id'))[0]
     event.is_available = False
+    event.is_if_needed = False
     event.tasks = Tasks.objects.filter(id=request.POST.get('task_id'))[0]
     event.save()
     return_path = "/planning"
@@ -150,5 +151,17 @@ def toggle_replacement(request):
     if event.user == request.user and not event.is_available:
         event.is_replaceable = not event.is_replaceable
         event.save()
+        return HttpResponseRedirect("/calendar")
+    return HttpResponseForbidden()
+
+def toggle_if_needed(request):
+    event = Event.objects.filter(id=request.GET.get('event_id'))[0]
+    if event.user == request.user and event.is_available:
+        # cycle: available -> available if needed -> removed
+        if event.is_if_needed:
+            event.delete()
+        else:
+            event.is_if_needed = True
+            event.save()
         return HttpResponseRedirect("/calendar")
     return HttpResponseForbidden()

@@ -22,16 +22,20 @@ class Calendar(HTMLCalendar):
             if event.user == self.current_user:
                 event_found = True
                 if event.is_available:
-                    d += '<li>Available</li>'
+                    label = "Available" + (" (if needed)" if event.is_if_needed else "")
+                    d += f'<li> <a href="toggle_if_needed?event_id={event.id}">{label}</a> </li>'
                 else:
                     rep = "(R)" if event.is_replaceable else ""
                     d += f'<li> <a href="toggle_replacement?event_id={event.id}">{event.tasks} {rep}</a> </li>'
+        if day == 0:
+            return '<td></td>'
         if not event_found:
-            d += f'<div class="box" onclick="createAvailableEvent(\'{day}-{self.month}-{self.year}\')"></div>'
-
-        if day != 0:
-            return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
-        return '<td></td>'
+            # whole cell is clickable to create a standard availability
+            return (
+                f"<td class='free-day' onclick=\"createAvailableEvent('{day}-{self.month}-{self.year}')\">"
+                f"<span class='date'>{day}</span><ul> {d} </ul></td>"
+            )
+        return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
 
     # formats a week as a tr
     def formatweek(self, theweek, events):
@@ -63,7 +67,8 @@ class GlobalCalendar(Calendar):
         if len(events_per_day) != 0:
             for event in events_per_day:
                 if event.is_available:
-                    d += '<li>Available</li>'
+                    label = "Available" + (" (if needed)" if event.is_if_needed else "")
+                    d += f'<li> {label} </li>'
                 else:
                     d += f'<li> {event.tasks} </li>'
         return f'<td style="height:30px;"><ul> {d} </ul></td>'
@@ -163,7 +168,10 @@ class PlanningCalendar(GlobalCalendar):
         if len(events_per_day) != 0:
             for event in events_per_day:
                 if event.is_available:
-                    d += self.define_form(event.id, request)
+                    if event.is_if_needed:
+                        d += '<li> If needed </li>'
+                    else:
+                        d += self.define_form(event.id, request)
                 else:
                     d += f'<li> {event.tasks} </li>'
         return f'<td style="height:30px;"><ul> {d} </ul></td>'

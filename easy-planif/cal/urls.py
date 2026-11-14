@@ -11,4 +11,5 @@ urlpatterns = [
     path('planning', views.PlanningView.as_view(), name='planning'),
     path('planning/event/update', views.update_event, name='planning_event_update'),
     path('calendar/toggle_replacement', views.toggle_replacement, name='toggle_replacement'),
+    path('calendar/toggle_if_needed', views.toggle_if_needed, name='toggle_if_needed'),
 ]

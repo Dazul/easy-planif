@@ -9,7 +9,7 @@ class EventForm(ModelForm):
     widgets = {
       'date': DateInput(format='%d-%m-%Y'),
     }
-    fields = ['is_available', 'date']
+    fields = ['is_available', 'is_if_needed', 'date']
 
   def __init__(self, *args, **kwargs):
     super(EventForm, self).__init__(*args, **kwargs)
