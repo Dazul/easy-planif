@@ -34,3 +34,56 @@ class UsersViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "plain")
         self.assertContains(response, "staff")
+from datetime import date
+
+from django.test import TestCase
+
+from hr.models import Employee
+
+from .models import CustomUser
+
+
+class UserEmployeeCreationViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="setup-admin",
+            password="password",
+            is_staff=True,
+        )
+
+    def test_staff_can_create_user_and_employee_together(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/users/",
+            {
+                "username": "new-employee",
+                "email": "new@example.com",
+                "first_name": "New",
+                "last_name": "Employee",
+                "password1": "Strong-password-123",
+                "password2": "Strong-password-123",
+                "employee_number": "NEW001",
+                "hourly_rate": "25.50",
+                "hired_on": "2026-01-05",
+                "left_on": "",
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, "/users/")
+        user = CustomUser.objects.get(username="new-employee")
+        employee = Employee.objects.get(user=user)
+        self.assertEqual(employee.employee_number, "NEW001")
+        self.assertEqual(employee.hired_on, date(2026, 1, 5))
+
+    def test_non_staff_cannot_create_user_and_employee(self):
+        user = CustomUser.objects.create_user(
+            username="regular-user",
+            password="password",
+        )
+        self.client.force_login(user)
+
+        response = self.client.post("/users/", {})
+
+        self.assertEqual(response.status_code, 403)

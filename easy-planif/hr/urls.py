@@ -10,6 +10,11 @@ urlpatterns = [
         name='employee_list',
     ),
     path(
+        'hr/employees/new/',
+        views.EmployeeCreateView.as_view(),
+        name='employee_create',
+    ),
+    path(
         'hr/time-entries/',
         views.WorkCalendarView.as_view(),
         name='work_calendar',

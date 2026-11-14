@@ -17,6 +17,12 @@
   {% include "menu.html" %}
   <div class="clearfix">
   {{ users }}
+  <h2 class="my-4">Create user and employee</h2>
+  <form method="post">
+    {% csrf_token %}
+    {{ user_creation_form.as_p }}
+    <button class="btn btn-primary" type="submit">Create user and employee</button>
+  </form>
   </div>
   {% endif %}
   </div>

@@ -3,7 +3,8 @@ from django.utils.safestring import mark_safe
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-
+from django.shortcuts import redirect
+from .forms import UserEmployeeCreationForm
 from .models import CustomUser
 # Create your views here.
 
@@ -24,4 +25,16 @@ class UsersView(generic.ListView):
             d += f'<li class="list-group-item"> {m.username} </li>'
         d += '</ul>'
         context['users'] = mark_safe(d)
+        context["user_creation_form"] = kwargs.get(
+            "user_creation_form",
+            UserEmployeeCreationForm(),
+        )
         return context
+
+    def post(self, request, *args, **kwargs):
+        form = UserEmployeeCreationForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("users")
+        context = self.get_context_data(user_creation_form=form)
+        return self.render_to_response(context, status=400)

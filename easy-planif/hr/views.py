@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate, now
 from django.views import View
 
-from .forms import WorkEntryForm
+from .forms import EmployeeForm, WorkEntryForm
 from .models import Employee, PayrollPayment, WorkEntry
 
 
@@ -37,6 +37,41 @@ class EmployeeListView(View):
                 "employees": employees,
                 "show_employee_list": True,
             },
+        )
+
+
+class EmployeeCreateView(View):
+    template_name = "hr.html"
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request):
+        return render(
+            request,
+            self.template_name,
+            {
+                "show_employee_form": True,
+                "employee_form": EmployeeForm(),
+            },
+        )
+
+    def post(self, request):
+        form = EmployeeForm(request.POST)
+        if form.is_valid():
+            form.save()
+            return redirect("hr:employee_list")
+        return render(
+            request,
+            self.template_name,
+            {
+                "show_employee_form": True,
+                "employee_form": form,
+            },
+            status=400,
         )
 
 

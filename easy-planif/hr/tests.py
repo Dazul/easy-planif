@@ -6,6 +6,7 @@ from django.test import TestCase
 
 from accounts.models import CustomUser
 
+from .forms import EmployeeForm
 from .models import Employee, PayrollPayment, WorkEntry
 
 
@@ -108,6 +109,58 @@ class EmployeeListViewTest(TestCase):
         response = self.client.get("/hr/employees/")
 
         self.assertEqual(response.status_code, 403)
+
+
+class EmployeeCreateViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="setup-manager",
+            password="password",
+            is_staff=True,
+        )
+        self.employee_user = CustomUser.objects.create_user(
+            username="setup-employee",
+            password="password",
+        )
+
+    def test_staff_can_create_employee_from_setup(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/employees/new/",
+            {
+                "user": self.employee_user.pk,
+                "employee_number": "SET001",
+                "hourly_rate": "24.50",
+                "hired_on": "2026-01-05",
+                "left_on": "",
+                "is_active": "on",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/employees/")
+        employee = Employee.objects.get(employee_number="SET001")
+        self.assertEqual(employee.user, self.employee_user)
+        self.assertEqual(employee.hourly_rate, 24.50)
+
+    def test_employee_user_cannot_create_profile(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/employees/new/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_users_with_profile_are_not_available(self):
+        Employee.objects.create(
+            user=self.employee_user,
+            employee_number="SET002",
+            hourly_rate="20.00",
+            hired_on=date(2026, 1, 5),
+        )
+
+        form = EmployeeForm()
+
+        self.assertNotIn(self.employee_user, form.fields["user"].queryset)
 
 
 class WorkCalendarViewTest(TestCase):
