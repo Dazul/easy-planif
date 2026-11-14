@@ -10,6 +10,11 @@
   {% load django_bootstrap5 %}
   {% bootstrap_css %}
   {% bootstrap_javascript %}
+  <style>
+    .calendar-day-past { background-color: #ffffff; }
+    .calendar-day-today { background-color: #cfe2ff; }
+    .calendar-day-future { background-color: #e7f1ff; }
+  </style>
 </head>
 <body>
   <div class="container">
@@ -219,13 +224,13 @@
           {% for week in calendar_weeks %}
             <tr>
               {% for day in week %}
-                <td class="{% if not day.is_current_month %}text-muted bg-light{% endif %}"
+                <td class="calendar-day calendar-day-{{ day.day_state }} {% if not day.is_current_month %}text-muted{% endif %}"
                     style="height: 120px; vertical-align: top;">
                   <a href="{% if employee_calendar %}{% url 'hr:employee_work_day' work_date=day.date|date:'Y-m-d' %}{% else %}{% url 'hr:work_day' work_date=day.date|date:'Y-m-d' %}{% endif %}">
                     <strong>{{ day.date|date:"j" }}</strong>
                   </a>
                   {% for entry in day.entries %}
-                    <div class="small mt-2">
+                    <div class="small mt-2 {% if entry.status == 'approved' %}text-success{% elif entry.status == 'rejected' %}text-danger{% else %}text-primary{% endif %}">
                       <strong>{{ entry.employee.user }}</strong><br>
                       {{ entry.start_time|time:"H:i" }} - {{ entry.end_time|time:"H:i" }}
                     </div>

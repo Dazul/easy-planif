@@ -282,6 +282,13 @@ class WorkCalendarView(View):
                     "date": day,
                     "entries": entries_by_date.get(day, []),
                     "is_current_month": day.month == month,
+                    "day_state": (
+                        "past"
+                        if day < today
+                        else "today"
+                        if day == today
+                        else "future"
+                    ),
                 }
                 for day in week
             ]

@@ -198,6 +198,7 @@ class WorkCalendarViewTest(TestCase):
         self.assertContains(response, "calendar-employee")
         self.assertContains(response, "08:00")
         self.assertContains(response, "17:00")
+        self.assertContains(response, "calendar-day-past")
 
     def test_non_staff_cannot_view_work_calendar(self):
         self.client.force_login(self.employee_user)
@@ -205,6 +206,14 @@ class WorkCalendarViewTest(TestCase):
         response = self.client.get("/hr/time-entries/")
 
         self.assertEqual(response.status_code, 403)
+
+    def test_calendar_marks_future_days(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2099&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "calendar-day-future")
 
 
 class WorkDayViewTest(TestCase):
