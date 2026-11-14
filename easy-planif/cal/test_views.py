@@ -152,6 +152,72 @@ class PlanningViewAccessTest(TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+class PlanningRenderingTest(TestCase):
+    def setUp(self):
+        self.planner = CustomUser.objects.create_user(
+            username="planner", password="secret"
+        )
+        assign_task = Permission.objects.get(codename="assign_task")
+        self.planner.user_permissions.add(assign_task)
+
+        self.worker = CustomUser.objects.create_user(
+            username="worker", password="secret"
+        )
+        self.t1 = Tasks.objects.create(task_name="T1")
+        self.t2 = Tasks.objects.create(task_name="T2")
+        Authorizations.objects.create(user=self.worker, task=self.t1)
+        Authorizations.objects.create(user=self.worker, task=self.t2)
+        # availability on Monday of the displayed week
+        self.available = Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 10, 7, tzinfo=timezone.utc),
+        )
+        self.client.force_login(self.planner)
+
+    def planning_url(self, **params):
+        return reverse("cal:planning") + "?" + "&".join(
+            f"{k}={v}" for k, v in params.items()
+        )
+
+    def test_no_header_task_shows_dropdown(self):
+        response = self.client.get(
+            reverse("cal:planning"), {"week_date": "2019-10-07"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "<select")
+        self.assertContains(response, '<option value="1">T1</option>')
+        self.assertContains(response, '<option value="2">T2</option>')
+        self.assertNotContains(response, "quick-assign")
+
+    def test_header_task_shows_quick_assign_box(self):
+        response = self.client.get(
+            self.planning_url(week_date="2019-10-07", task=self.t1.id)
+        )
+        self.assertEqual(response.status_code, 200)
+        # dropdown replaced by a one-click quick-assign box
+        self.assertNotContains(response, "<select")
+        self.assertContains(response, "quick-assign")
+        # submits the selected task directly
+        self.assertContains(response, f'name="task_id" value="{self.t1.id}"')
+        self.assertContains(response, ">T1</button>")
+
+    def test_header_task_unauthorized_user_renders_dashes(self):
+        # 'other' holds no authorization for T1: their cell shows dashes
+        # instead of the quick-assign box
+        other = CustomUser.objects.create_user(username="other", password="secret")
+        Event.objects.create(
+            user=other,
+            date=datetime(2019, 10, 7, tzinfo=timezone.utc),
+        )
+        response = self.client.get(
+            self.planning_url(week_date="2019-10-07", task=self.t1.id)
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "---")
+        # 'other' row must not contain a submit box
+        self.assertNotContains(response, 'name="event_id" value="2"')
+
+
 class CalendarViewTest(TestCase):
     """Note: CalendarView is currently NOT login-protected."""
 

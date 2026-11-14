@@ -139,42 +139,47 @@ class PlanningCalendar(GlobalCalendar):
         super().__init__()
 
     def define_form(self, event_id, request):
-        tasks = []
         user = CustomUser.objects.get(id=Event.objects.get(id=event_id).user_id)
         auths = Authorizations.objects.all().filter(user=user)
-        if 'task' in request.GET:
-            found = False
+        week_date = request.GET.get('week_date')
+        selected_task_id = request.GET.get('task')
+        context = {'event_id': event_id, 'week_date': week_date}
+        if selected_task_id is not None:
+            # A task is chosen in the header: replace the dropdown with a
+            # one-click quick-assign box for that task.
             for auth in auths:
-                if str(auth.task_id) == request.GET['task']:
-                    tasks.append(Tasks.objects.get(id=auth.task_id))
-                    found = True
-                    break
-            if not found:
-                return '---'
-        else:
-            for auth in auths:
-                tasks.append(Tasks.objects.get(id=auth.task_id))
-        week_date = None
-        task = None
-        if 'week_date' in request.GET.keys():
-            week_date = request.GET['week_date']
-        if 'task' in request.GET.keys():
-            task = request.GET['task']
-        return render_to_string("cal/dropdown_planning.html", {'event_id': event_id, 'tasks': tasks, 'week_date': week_date, 'task': task}, request=request)
+                if str(auth.task_id) == selected_task_id:
+                    context['task'] = Tasks.objects.get(id=auth.task_id)
+                    return render_to_string(
+                        "cal/quick_assign.html", context, request=request
+                    )
+            # Selected task is not among the user's authorized tasks
+            return '---'
+        context['tasks'] = [Tasks.objects.get(id=auth.task_id) for auth in auths]
+        return render_to_string(
+            "cal/dropdown_planning.html", context, request=request
+        )
 
     def formatday(self, day, events, user_id, request):
         events_per_day = events.filter(date__day=day, user__id=user_id)
         d = ''
+        pre = ''
         if len(events_per_day) != 0:
             for event in events_per_day:
                 if event.is_available:
                     if event.is_if_needed:
                         d += '<li> If needed </li>'
                     else:
-                        d += self.define_form(event.id, request)
+                        rendered = self.define_form(event.id, request)
+                        if '<form' in rendered:
+                            # a quick-assign button renders outside the ul,
+                            # otherwise its text overflows the button
+                            pre += rendered
+                        else:
+                            d += rendered
                 else:
                     d += f'<li> {event.tasks} </li>'
-        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+        return f'<td style="height:30px;">{pre}<ul> {d} </ul></td>'
 
     def formatweek(self, theweek, request):
         events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
