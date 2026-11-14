@@ -110,6 +110,50 @@ class EmployeeListViewTest(TestCase):
         self.assertEqual(response.status_code, 403)
 
 
+class WorkCalendarViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="calendar-manager",
+            password="password",
+            is_staff=True,
+        )
+        self.employee_user = CustomUser.objects.create_user(
+            username="calendar-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="CAL001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+
+    def test_staff_can_view_work_calendar(self):
+        WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "October 2026")
+        self.assertContains(response, "calendar-employee")
+        self.assertContains(response, "08:00")
+        self.assertContains(response, "17:00")
+
+    def test_non_staff_cannot_view_work_calendar(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/time-entries/")
+
+        self.assertEqual(response.status_code, 403)
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(
