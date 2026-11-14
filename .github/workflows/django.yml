@@ -10,8 +10,8 @@ jobs:
   #check:
   #  runs-on: ubuntu-latest
   #  steps:
-  #    - uses: actions/checkout@v4
-  #    - uses: actions/setup-python@v5
+  #    - uses: actions/checkout@v5
+  #    - uses: actions/setup-python@v6
   #      with:
   #        python-version: 3.14
 
@@ -31,9 +31,9 @@ jobs:
         python-version: [3.12, 3.13, 3.14]
 
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v5
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v6
       with:
         python-version: ${{ matrix.python-version }}
     - name: Install Dependencies
@@ -42,6 +42,8 @@ jobs:
         pip install -r requirements.txt
     - name: Run Tests
       run: |
-        python easy-planif/manage.py test tasks cal
+        python easy-planif/manage.py test accounts tasks cal hr
       env:
-        SECRET_KEY: "${{ secrets.SECRET_KEY }}"
+        # Tests don't handle secrets; use a throwaway key instead of
+        # the repository secret.
+        SECRET_KEY: "ci-only-insecure-key"

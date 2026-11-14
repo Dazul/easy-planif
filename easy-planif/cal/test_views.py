@@ -1,0 +1,236 @@
+from datetime import datetime, timezone
+
+from django.contrib.auth.models import Permission
+from django.test import TestCase
+from django.urls import reverse
+
+from accounts.models import CustomUser
+from tasks.models import Tasks, Authorizations
+
+from .models import Event
+
+
+class ToggleReplacementTest(TestCase):
+    def setUp(self):
+        self.owner = CustomUser.objects.create_user(
+            username="owner", password="secret"
+        )
+        self.other = CustomUser.objects.create_user(
+            username="other", password="secret"
+        )
+        self.task = Tasks.objects.create(task_name="T1")
+        Authorizations.objects.create(user=self.owner, task=self.task)
+        self.event = Event.objects.create(
+            user=self.owner,
+            tasks=self.task,
+            date=datetime(2019, 10, 5, tzinfo=timezone.utc),
+            is_available=False,
+        )
+
+    def url(self, event):
+        return f"{reverse('cal:toggle_replacement')}?event_id={event.id}"
+
+    def test_owner_can_toggle_replacement_on(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(self.event))
+        self.assertRedirects(response, "/calendar", fetch_redirect_response=False)
+        self.event.refresh_from_db()
+        self.assertTrue(self.event.is_replaceable)
+
+    def test_owner_can_toggle_replacement_off(self):
+        self.event.is_replaceable = True
+        self.event.save()
+        self.client.force_login(self.owner)
+        self.client.get(self.url(self.event))
+        self.event.refresh_from_db()
+        self.assertFalse(self.event.is_replaceable)
+
+    def test_other_user_cannot_toggle(self):
+        self.client.force_login(self.other)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.event.refresh_from_db()
+        self.assertFalse(self.event.is_replaceable)
+
+    def test_owner_cannot_toggle_availability_event(self):
+        available = Event.objects.create(
+            user=self.owner,
+            date=datetime(2019, 10, 6, tzinfo=timezone.utc),
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(available))
+        self.assertEqual(response.status_code, 403)
+        available.refresh_from_db()
+        self.assertFalse(available.is_replaceable)
+
+
+class UpdateEventTest(TestCase):
+    def setUp(self):
+        self.planner = CustomUser.objects.create_user(
+            username="planner", password="secret"
+        )
+        # Grant the planner the assign_task permission
+        assign_task = Permission.objects.get(codename="assign_task")
+        self.planner.user_permissions.add(assign_task)
+
+        self.worker = CustomUser.objects.create_user(
+            username="worker", password="secret"
+        )
+        self.task = Tasks.objects.create(task_name="T1")
+        Authorizations.objects.create(user=self.worker, task=self.task)
+
+        self.available_event = Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 10, 5, tzinfo=timezone.utc),
+        )
+
+    def post_update(self, week_date="None", task="None"):
+        return self.client.post(
+            reverse("cal:planning_event_update"),
+            {
+                "event_id": self.available_event.id,
+                "task_id": self.task.id,
+                "week_date": week_date,
+                "task": task,
+            },
+        )
+
+    def test_assign_task_to_available_event(self):
+        self.client.force_login(self.planner)
+        response = self.post_update()
+        self.assertRedirects(response, "/planning", fetch_redirect_response=False)
+        self.available_event.refresh_from_db()
+        self.assertFalse(self.available_event.is_available)
+        self.assertEqual(self.available_event.tasks, self.task)
+
+    def test_missing_permission_is_forbidden(self):
+        self.client.force_login(self.worker)
+        response = self.post_update()
+        self.assertEqual(response.status_code, 403)
+        self.available_event.refresh_from_db()
+        self.assertTrue(self.available_event.is_available)
+
+    def test_post_params_preserved_in_redirect(self):
+        self.client.force_login(self.planner)
+        response = self.post_update(
+            week_date="2019-10-07", task=str(self.task.id)
+        )
+        self.assertRedirects(
+            response,
+            "/planning?week_date=2019-10-07&task=" + str(self.task.id),
+            fetch_redirect_response=False,
+        )
+
+
+class PlanningViewAccessTest(TestCase):
+    def setUp(self):
+        Tasks.objects.create(task_name="T1")
+
+    def test_anonymous_forbidden(self):
+        # raise_exception=True rejects anonymous users with 403 too
+        response = self.client.get(reverse("cal:planning"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_without_permission_forbidden(self):
+        user = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(user)
+        response = self.client.get(reverse("cal:planning"))
+        self.assertEqual(response.status_code, 403)
+
+    def test_with_assign_task_permission_allowed(self):
+        planner = CustomUser.objects.create_user(
+            username="planner", password="secret"
+        )
+        assign_task = Permission.objects.get(codename="assign_task")
+        planner.user_permissions.add(assign_task)
+        self.client.force_login(planner)
+        response = self.client.get(reverse("cal:planning"))
+        self.assertEqual(response.status_code, 200)
+
+
+class CalendarViewTest(TestCase):
+    """Note: CalendarView is currently NOT login-protected."""
+
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username="u1", password="secret"
+        )
+
+    def test_anonymous_access_allowed(self):
+        # Document current behavior: no @login_required on CalendarView
+        response = self.client.get(reverse("cal:calendar"))
+        self.assertEqual(response.status_code, 200)
+
+    def test_logged_in_shows_calendar(self):
+        self.client.force_login(self.user)
+        response = self.client.get(reverse("cal:calendar"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "calendar")
+
+    def test_own_event_rendered_as_available(self):
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        Event.objects.create(user=self.user, date=d)
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("cal:calendar"), {"month": "2019-10"}
+        )
+        self.assertContains(response, "Available")
+
+
+class CreateEventTest(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username="u1", password="secret"
+        )
+
+    def valid_payload(self, day="05"):
+        # EventForm uses %d-%m-%Y input format (day-month-year)
+        return {"is_available": "True", "date": f"{day}-10-2019"}
+
+    def test_create_available_event(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("cal:event_new"), self.valid_payload()
+        )
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(Event.objects.count(), 1)
+        event = Event.objects.get(user=self.user)
+        self.assertTrue(event.is_available)
+        self.assertEqual(event.date, datetime(2019, 10, 5, tzinfo=timezone.utc))
+
+    def test_duplicate_date_rejected(self):
+        # UniqueConstraint (user, date) is checked in Model.clean(),
+        # not in the form (user is not a form field), so saving a
+        # duplicate raises before the view returns cleanly.
+        self.client.force_login(self.user)
+        self.client.post(reverse("cal:event_new"), self.valid_payload())
+        with self.assertRaises(Exception):
+            self.client.post(reverse("cal:event_new"), self.valid_payload())
+        self.assertEqual(Event.objects.count(), 1)
+
+    def test_iso_date_also_accepted(self):
+        # DateField falls back to ISO YYYY-MM-DD even with custom
+        # input_formats
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("cal:event_new"),
+            {"is_available": "True", "date": "2019-10-05"},
+        )
+        self.assertEqual(response.status_code, 201)
+        event = Event.objects.get(user=self.user)
+        self.assertEqual(event.date, datetime(2019, 10, 5, tzinfo=timezone.utc))
+
+    def test_garbage_date_rejected(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("cal:event_new"),
+            {"is_available": "True", "date": "not-a-date"},
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Event.objects.count(), 0)
+
+    def test_missing_fields_rejected(self):
+        self.client.force_login(self.user)
+        response = self.client.post(reverse("cal:event_new"), {})
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(Event.objects.count(), 0)
