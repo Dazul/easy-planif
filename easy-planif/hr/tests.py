@@ -6,7 +6,7 @@ from django.test import TestCase
 
 from accounts.models import CustomUser
 
-from .models import Employee, WorkEntry
+from .models import Employee, PayrollPayment, WorkEntry
 
 
 class EmployeeModelTest(TestCase):
@@ -258,6 +258,49 @@ class EmployeeWorkCalendarViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "08:00")
         self.assertNotContains(response, "Approve")
+
+
+class PayrollPaymentModelTest(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username="payroll-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.user,
+            employee_number="PAY001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        self.admin = CustomUser.objects.create_user(
+            username="payroll-admin",
+            password="password",
+            is_staff=True,
+        )
+
+    def test_payment_is_pending_until_approved(self):
+        payment = PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="250.00",
+        )
+
+        self.assertFalse(payment.is_approved)
+        payment.approved_by = self.admin
+        payment.save()
+        self.assertTrue(payment.is_approved)
+
+    def test_period_must_start_on_first_day(self):
+        payment = PayrollPayment(
+            employee=self.employee,
+            period_month=date(2026, 10, 2),
+            payment_date=date(2026, 10, 15),
+            amount="250.00",
+        )
+
+        with self.assertRaises(ValidationError):
+            payment.save()
 
 
 class WorkEntryModelTest(TestCase):
