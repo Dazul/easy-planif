@@ -52,7 +52,11 @@
       </table>
     {% elif show_employee_payroll %}
       <div class="d-flex justify-content-between align-items-center my-4">
+        <a class="btn btn-outline-primary"
+           href="?year={{ employee_payroll_previous.0 }}&month={{ employee_payroll_previous.1 }}">Previous</a>
         <h1>My payroll - {{ employee_payroll_month|date:"F Y" }}</h1>
+        <a class="btn btn-outline-primary"
+           href="?year={{ employee_payroll_next.0 }}&month={{ employee_payroll_next.1 }}">Next</a>
       </div>
       <p>Current hourly rate: <strong>{{ employee_hourly_rate }}</strong></p>
       <p>Approved worked hours: <strong>{{ employee_total_hours }}</strong></p>
@@ -92,16 +96,12 @@
       </table>
     {% elif show_payroll_summary %}
       <div class="d-flex justify-content-between align-items-center my-4">
+        <a class="btn btn-outline-primary"
+           href="?year={{ payroll_previous.0 }}&month={{ payroll_previous.1 }}">Previous</a>
         <h1>Payroll - {{ payroll_month|date:"F Y" }}</h1>
+        <a class="btn btn-outline-primary"
+           href="?year={{ payroll_next.0 }}&month={{ payroll_next.1 }}">Next</a>
       </div>
-      {% if not employee_day %}
-        <form method="post" class="card card-body mb-4">
-          {% csrf_token %}
-          <h2 class="h5">Add work entry</h2>
-          {{ new_entry_form.as_p }}
-          <button class="btn btn-primary" type="submit">Add entry</button>
-        </form>
-      {% endif %}
       <table class="table table-striped">
         <thead>
           <tr>
@@ -162,6 +162,14 @@
           Back to calendar
         </a>
       </div>
+      {% if not employee_day %}
+        <form method="post" class="card card-body mb-4">
+          {% csrf_token %}
+          <h2 class="h5">Add work entry</h2>
+          {{ new_entry_form.as_p }}
+          <button class="btn btn-primary" type="submit">Add entry</button>
+        </form>
+      {% endif %}
       <table class="table table-striped">
         <thead>
           <tr>

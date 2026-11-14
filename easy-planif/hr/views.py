@@ -175,6 +175,8 @@ class PayrollSummaryView(View):
             {
                 "show_payroll_summary": True,
                 "payroll_month": period_month,
+                "payroll_previous": self._month_navigation(year, month, -1),
+                "payroll_next": self._month_navigation(year, month, 1),
                 "payroll_rows": rows,
                 "payroll_total_hours": total_hours,
                 "payroll_total_due": total_due,
@@ -182,6 +184,15 @@ class PayrollSummaryView(View):
                 "payroll_balance": total_due - total_paid,
             },
         )
+
+    @staticmethod
+    def _month_navigation(year, month, offset):
+        month += offset
+        if month == 0:
+            return year - 1, 12
+        if month == 13:
+            return year + 1, 1
+        return year, month
 
     @staticmethod
     def _get_month_value(request, name, default):
@@ -239,6 +250,12 @@ class EmployeePayrollView(View):
             {
                 "show_employee_payroll": True,
                 "employee_payroll_month": period_month,
+                "employee_payroll_previous": self._month_navigation(
+                    year, month, -1
+                ),
+                "employee_payroll_next": self._month_navigation(
+                    year, month, 1
+                ),
                 "employee_hourly_rate": employee.hourly_rate,
                 "employee_payments": payments,
                 "employee_total_hours": total_hours,
@@ -247,6 +264,15 @@ class EmployeePayrollView(View):
                 "employee_balance": total_due - total_paid,
             },
         )
+
+    @staticmethod
+    def _month_navigation(year, month, offset):
+        month += offset
+        if month == 0:
+            return year - 1, 12
+        if month == 13:
+            return year + 1, 1
+        return year, month
 
     @staticmethod
     def _get_month_value(request, name, default):

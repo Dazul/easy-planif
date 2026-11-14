@@ -453,6 +453,15 @@ class PayrollSummaryViewTest(TestCase):
         self.assertContains(response, "50.00")
         self.assertContains(response, "150.00")
 
+    def test_staff_can_navigate_payroll_months(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "year=2025&month=12")
+        self.assertContains(response, "year=2026&month=2")
+
     def test_payments_are_counted_even_on_non_worked_days(self):
         PayrollPayment.objects.create(
             employee=self.employee,
@@ -555,6 +564,15 @@ class EmployeePayrollViewTest(TestCase):
         self.assertContains(response, "200.00")
         self.assertContains(response, "150.00")
         self.assertNotContains(response, "999.00")
+
+    def test_employee_can_navigate_payroll_months(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-payroll/?year=2026&month=12")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "year=2026&month=11")
+        self.assertContains(response, "year=2027&month=1")
 
 
 class WorkEntryModelTest(TestCase):
