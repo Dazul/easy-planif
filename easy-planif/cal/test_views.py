@@ -97,10 +97,14 @@ class UpdateEventTest(TestCase):
 
     def test_assign_task_to_available_event(self):
         self.client.force_login(self.planner)
+        # Event starts as a standard availability
+        self.available_event.is_if_needed = True
+        self.available_event.save()
         response = self.post_update()
         self.assertRedirects(response, "/planning", fetch_redirect_response=False)
         self.available_event.refresh_from_db()
         self.assertFalse(self.available_event.is_available)
+        self.assertFalse(self.available_event.is_if_needed)
         self.assertEqual(self.available_event.tasks, self.task)
 
     def test_missing_permission_is_forbidden(self):
@@ -176,6 +180,78 @@ class CalendarViewTest(TestCase):
         )
         self.assertContains(response, "Available")
 
+    def test_own_event_rendered_as_if_needed(self):
+        d = datetime(2019, 10, 5, tzinfo=timezone.utc)
+        Event.objects.create(user=self.user, date=d, is_if_needed=True)
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("cal:calendar"), {"month": "2019-10"}
+        )
+        self.assertContains(response, "Available (if needed)")
+
+    def test_empty_day_cell_is_clickable(self):
+        self.client.force_login(self.user)
+        response = self.client.get(
+            reverse("cal:calendar"), {"month": "2019-10"}
+        )
+        # free days expose the whole cell as a click target
+        self.assertContains(response, "free-day")
+
+
+class ToggleIfNeededTest(TestCase):
+    def setUp(self):
+        self.owner = CustomUser.objects.create_user(
+            username="owner", password="secret"
+        )
+        self.other = CustomUser.objects.create_user(
+            username="other", password="secret"
+        )
+        self.event = Event.objects.create(
+            user=self.owner,
+            date=datetime(2019, 10, 5, tzinfo=timezone.utc),
+        )
+
+    def url(self, event):
+        return f"{reverse('cal:toggle_if_needed')}?event_id={event.id}"
+
+    def test_owner_can_toggle_to_if_needed(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(self.event))
+        self.assertRedirects(response, "/calendar", fetch_redirect_response=False)
+        self.event.refresh_from_db()
+        self.assertTrue(self.event.is_if_needed)
+
+    def test_owner_can_cycle_back_to_removed(self):
+        self.event.is_if_needed = True
+        self.event.save()
+        self.client.force_login(self.owner)
+        self.client.get(self.url(self.event))
+        # cycling from "if needed" removes the availability entirely
+        with self.assertRaises(Event.DoesNotExist):
+            Event.objects.get(pk=self.event.pk)
+
+    def test_other_user_cannot_toggle(self):
+        self.client.force_login(self.other)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.event.refresh_from_db()
+        self.assertFalse(self.event.is_if_needed)
+
+    def test_cannot_toggle_assigned_event(self):
+        task = Tasks.objects.create(task_name="T1")
+        Authorizations.objects.create(user=self.owner, task=task)
+        assigned = Event.objects.create(
+            user=self.owner,
+            tasks=task,
+            date=datetime(2019, 10, 6, tzinfo=timezone.utc),
+            is_available=False,
+        )
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(assigned))
+        self.assertEqual(response.status_code, 403)
+        assigned.refresh_from_db()
+        self.assertFalse(assigned.is_if_needed)
+
 
 class CreateEventTest(TestCase):
     def setUp(self):
@@ -183,9 +259,13 @@ class CreateEventTest(TestCase):
             username="u1", password="secret"
         )
 
-    def valid_payload(self, day="05"):
+    def valid_payload(self, day="05", if_needed="false"):
         # EventForm uses %d-%m-%Y input format (day-month-year)
-        return {"is_available": "True", "date": f"{day}-10-2019"}
+        return {
+            "is_available": "True",
+            "is_if_needed": if_needed,
+            "date": f"{day}-10-2019",
+        }
 
     def test_create_available_event(self):
         self.client.force_login(self.user)
@@ -196,7 +276,18 @@ class CreateEventTest(TestCase):
         self.assertEqual(Event.objects.count(), 1)
         event = Event.objects.get(user=self.user)
         self.assertTrue(event.is_available)
+        self.assertFalse(event.is_if_needed)
         self.assertEqual(event.date, datetime(2019, 10, 5, tzinfo=timezone.utc))
+
+    def test_create_if_needed_event(self):
+        self.client.force_login(self.user)
+        response = self.client.post(
+            reverse("cal:event_new"), self.valid_payload(if_needed="true")
+        )
+        self.assertEqual(response.status_code, 201)
+        event = Event.objects.get(user=self.user)
+        self.assertTrue(event.is_available)
+        self.assertTrue(event.is_if_needed)
 
     def test_duplicate_date_rejected(self):
         # UniqueConstraint (user, date) is checked in Model.clean(),

@@ -8,6 +8,7 @@ class Event(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     tasks = models.ForeignKey(Tasks, on_delete=models.CASCADE, blank=True, null=True)
     is_available = models.BooleanField(default=True)
+    is_if_needed = models.BooleanField(default=False)
     date = models.DateTimeField()
     is_replaceable = models.BooleanField(default=False)
 
@@ -33,6 +34,10 @@ class Event(models.Model):
             auth = Authorizations.objects.filter(user=self.user, task=self.tasks)
             if len(auth) == 0:
                 raise ValidationError({"content": "Unauthorized"})
+        if self.is_if_needed and not self.is_available:
+            raise ValidationError(
+                {"content": "Event cannot be if needed and not available"}
+            )
 
     def save(self, *args, **kwargs):
         self.full_clean()
