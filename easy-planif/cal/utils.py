@@ -168,15 +168,14 @@ class PlanningCalendar(GlobalCalendar):
             for event in events_per_day:
                 if event.is_available:
                     if event.is_if_needed:
-                        d += '<li> If needed </li>'
+                        d += '<li class="if-needed-info"> If needed </li>'
+                    rendered = self.define_form(event.id, request)
+                    if '<form' in rendered:
+                        # a quick-assign button renders outside the ul,
+                        # otherwise its text overflows the button
+                        pre += rendered
                     else:
-                        rendered = self.define_form(event.id, request)
-                        if '<form' in rendered:
-                            # a quick-assign button renders outside the ul,
-                            # otherwise its text overflows the button
-                            pre += rendered
-                        else:
-                            d += rendered
+                        d += rendered
                 else:
                     d += f'<li> {event.tasks} </li>'
         return f'<td style="height:30px;">{pre}<ul> {d} </ul></td>'
