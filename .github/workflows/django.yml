@@ -44,4 +44,6 @@ jobs:
       run: |
         python easy-planif/manage.py test accounts tasks cal hr
       env:
-        SECRET_KEY: "${{ secrets.SECRET_KEY }}"
+        # Tests don't handle secrets; use a throwaway key instead of
+        # the repository secret.
+        SECRET_KEY: "ci-only-insecure-key"
