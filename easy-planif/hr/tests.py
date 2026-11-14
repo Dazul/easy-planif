@@ -276,6 +276,28 @@ class WorkDayViewTest(TestCase):
         self.assertEqual(self.entry.break_minutes, 45)
         self.assertEqual(self.entry.notes, "Updated project")
 
+    def test_staff_can_add_entry_to_day(self):
+        self.client.force_login(self.staff)
+        employee = self.entry.employee
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "employee": employee.pk,
+                "start_time": "18:00",
+                "end_time": "20:00",
+                "notes": "Evening shift",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        entry = WorkEntry.objects.get(
+            employee=employee,
+            start_time=time(18, 0),
+        )
+        self.assertEqual(entry.break_minutes, 30)
+        self.assertEqual(entry.work_date, date(2026, 10, 8))
+
 
 class EmployeeWorkCalendarViewTest(TestCase):
     def setUp(self):

@@ -9,7 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate, now
 from django.views import View
 
-from .forms import EmployeeForm, WorkEntryForm
+from .forms import EmployeeForm, WorkEntryCreateForm, WorkEntryForm
 from .models import Employee, PayrollPayment, WorkEntry
 
 
@@ -354,10 +354,40 @@ class WorkDayView(View):
                 "work_date": work_date,
                 "work_entries": entries,
                 "entry_rows": entry_rows,
+                "new_entry_form": (
+                    WorkEntryCreateForm() if not self.employee_only else None
+                ),
             },
         )
 
     def post(self, request, work_date):
+        parsed_work_date = date.fromisoformat(work_date)
+        if not request.POST.get("entry_id"):
+            form = WorkEntryCreateForm(
+                request.POST,
+                instance=WorkEntry(work_date=parsed_work_date),
+            )
+            if form.is_valid():
+                entry = form.save(commit=False)
+                entry.work_date = parsed_work_date
+                entry.save()
+                return redirect("hr:work_day", work_date=work_date)
+            return render(
+                request,
+                self.template_name,
+                {
+                    "show_work_day": True,
+                    "employee_day": self.employee_only,
+                    "work_date": work_date,
+                    "work_entries": self.get_entries_queryset(request).filter(
+                        work_date=work_date,
+                    ),
+                    "entry_rows": [],
+                    "new_entry_form": form,
+                },
+                status=400,
+            )
+
         entry = get_object_or_404(
             self.get_entries_queryset(request),
             pk=request.POST.get("entry_id"),
