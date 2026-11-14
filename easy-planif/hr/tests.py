@@ -203,6 +203,63 @@ class WorkDayViewTest(TestCase):
         self.assertEqual(self.entry.approved_by, self.staff)
 
 
+class EmployeeWorkCalendarViewTest(TestCase):
+    def setUp(self):
+        self.employee_user = CustomUser.objects.create_user(
+            username="self-calendar",
+            password="password",
+        )
+        self.other_user = CustomUser.objects.create_user(
+            username="other-calendar",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="SELF001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        other_employee = Employee.objects.create(
+            user=self.other_user,
+            employee_number="OTHER001",
+            hourly_rate="30.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        WorkEntry.objects.create(
+            employee=other_employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(9, 0),
+            end_time=time(18, 0),
+        )
+
+    def test_employee_only_sees_own_entries(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get(
+            "/hr/my-time-entries/?year=2026&month=10"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "self-calendar")
+        self.assertNotContains(response, "other-calendar")
+
+    def test_employee_day_view_is_read_only(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-time-entries/2026-10-08/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "08:00")
+        self.assertNotContains(response, "Approve")
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(

@@ -40,6 +40,7 @@ class EmployeeListView(View):
 
 class WorkCalendarView(View):
     template_name = "hr.html"
+    employee_only = False
 
     @method_decorator(login_required)
     def dispatch(self, request, *args, **kwargs):
@@ -55,7 +56,7 @@ class WorkCalendarView(View):
             year, month = today.year, today.month
 
         first_day = date(year, month, 1)
-        entries = WorkEntry.objects.filter(
+        entries = self.get_entries_queryset(request).filter(
             work_date__year=year,
             work_date__month=month,
         ).select_related("employee", "employee__user")
@@ -90,6 +91,7 @@ class WorkCalendarView(View):
             self.template_name,
             {
                 "show_work_calendar": True,
+                "employee_calendar": self.employee_only,
                 "calendar_weeks": weeks,
                 "calendar_month": first_day,
                 "previous_year": previous_year,
@@ -98,6 +100,9 @@ class WorkCalendarView(View):
                 "next_month": next_month,
             },
         )
+
+    def get_entries_queryset(self, request):
+        return WorkEntry.objects.all()
 
     @staticmethod
     def _get_month_value(request, name, default):
@@ -109,6 +114,7 @@ class WorkCalendarView(View):
 
 class WorkDayView(View):
     template_name = "hr.html"
+    employee_only = False
 
     @method_decorator(login_required)
     def dispatch(self, request, *args, **kwargs):
@@ -117,7 +123,7 @@ class WorkDayView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, work_date):
-        entries = WorkEntry.objects.filter(
+        entries = self.get_entries_queryset(request).filter(
             work_date=work_date,
         ).select_related("employee", "employee__user")
         return render(
@@ -125,6 +131,7 @@ class WorkDayView(View):
             self.template_name,
             {
                 "show_work_day": True,
+                "employee_day": self.employee_only,
                 "work_date": work_date,
                 "work_entries": entries,
             },
@@ -132,7 +139,7 @@ class WorkDayView(View):
 
     def post(self, request, work_date):
         entry = get_object_or_404(
-            WorkEntry,
+            self.get_entries_queryset(request),
             pk=request.POST.get("entry_id"),
             work_date=work_date,
         )
@@ -140,3 +147,30 @@ class WorkDayView(View):
         entry.approved_by = request.user
         entry.save()
         return redirect("hr:work_day", work_date=work_date)
+
+    def get_entries_queryset(self, request):
+        return WorkEntry.objects.all()
+
+
+class EmployeeWorkCalendarView(WorkCalendarView):
+    employee_only = True
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return View.dispatch(self, request, *args, **kwargs)
+
+    def get_entries_queryset(self, request):
+        return WorkEntry.objects.filter(employee__user=request.user)
+
+class EmployeeWorkDayView(WorkDayView):
+    employee_only = True
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return View.dispatch(self, request, *args, **kwargs)
+
+    def get_entries_queryset(self, request):
+        return WorkEntry.objects.filter(employee__user=request.user)
+
+    def post(self, request, work_date):
+        raise PermissionDenied("Employees cannot approve work entries.")

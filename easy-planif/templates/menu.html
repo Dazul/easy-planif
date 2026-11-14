@@ -48,6 +48,11 @@
             </ul>
         </div>
       {% endif %}
+      {% if user.is_authenticated and not user.is_staff %}
+        <div class="dropdown">
+          <a class="btn btn-secondary" href="/hr/my-time-entries/">My working time</a>
+        </div>
+      {% endif %}
         <div class="dropdown">
             <form action="{% url 'logout' %}" method="post">
                 {% csrf_token %}

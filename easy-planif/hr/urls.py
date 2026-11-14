@@ -19,4 +19,14 @@ urlpatterns = [
         views.WorkDayView.as_view(),
         name='work_day',
     ),
+    path(
+        'hr/my-time-entries/',
+        views.EmployeeWorkCalendarView.as_view(),
+        name='employee_work_calendar',
+    ),
+    path(
+        'hr/my-time-entries/<slug:work_date>/',
+        views.EmployeeWorkDayView.as_view(),
+        name='employee_work_day',
+    ),
 ]
