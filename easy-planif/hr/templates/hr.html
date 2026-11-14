@@ -163,27 +163,30 @@
           </tr>
         </thead>
         <tbody>
-          {% for entry in work_entries %}
+          {% for row in entry_rows %}
+            {% with entry=row.entry form=row.form %}
             <tr>
               <td>{{ entry.employee.user }}</td>
-              <td>{{ entry.start_time|time:"H:i" }}</td>
-              <td>{{ entry.end_time|time:"H:i" }}</td>
-              <td>{{ entry.break_minutes }} min</td>
+              <td>{% if not employee_day %}{{ form.start_time }}{% else %}{{ entry.start_time|time:"H:i" }}{% endif %}</td>
+              <td>{% if not employee_day %}{{ form.end_time }}{% else %}{{ entry.end_time|time:"H:i" }}{% endif %}</td>
+              <td>{% if not employee_day %}{{ form.break_minutes }}{% else %}{{ entry.break_minutes }} min{% endif %}</td>
               <td>{{ entry.duration_hours }}</td>
               <td>{{ entry.get_status_display }}</td>
-              <td>{{ entry.notes|default:"-" }}</td>
+              <td>{% if not employee_day %}{{ form.notes }}{% else %}{{ entry.notes|default:"-" }}{% endif %}</td>
               {% if not employee_day %}<td>
-                {% if entry.status != "approved" %}
-                  <form method="post">
+                <form id="entry-form-{{ entry.pk }}" method="post">
                     {% csrf_token %}
                     <input type="hidden" name="entry_id" value="{{ entry.pk }}">
-                    <button class="btn btn-sm btn-success" type="submit">Approve</button>
-                  </form>
-                {% else %}
-                  <span class="text-success">Approved</span>
-                {% endif %}
+                    <button class="btn btn-sm btn-primary" type="submit" name="action" value="save">Save</button>
+                    {% if entry.status != "approved" %}
+                      <button class="btn btn-sm btn-success" type="submit" name="action" value="approve">Approve</button>
+                    {% else %}
+                      <span class="text-success">Approved</span>
+                    {% endif %}
+                </form>
               </td>{% endif %}
             </tr>
+            {% endwith %}
           {% empty %}
             <tr><td colspan="{% if employee_day %}7{% else %}8{% endif %}">No work entry for this day.</td></tr>
           {% endfor %}

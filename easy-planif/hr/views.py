@@ -9,6 +9,7 @@ from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate, now
 from django.views import View
 
+from .forms import WorkEntryForm
 from .models import Employee, PayrollPayment, WorkEntry
 
 
@@ -301,6 +302,14 @@ class WorkDayView(View):
         entries = self.get_entries_queryset(request).filter(
             work_date=work_date,
         ).select_related("employee", "employee__user")
+        entry_rows = [
+            {
+                "entry": entry,
+                "form": self._entry_form(entry),
+                "form_id": f"entry-form-{entry.pk}",
+            }
+            for entry in entries
+        ]
         return render(
             request,
             self.template_name,
@@ -309,6 +318,7 @@ class WorkDayView(View):
                 "employee_day": self.employee_only,
                 "work_date": work_date,
                 "work_entries": entries,
+                "entry_rows": entry_rows,
             },
         )
 
@@ -318,10 +328,60 @@ class WorkDayView(View):
             pk=request.POST.get("entry_id"),
             work_date=work_date,
         )
-        entry.status = WorkEntry.Status.APPROVED
-        entry.approved_by = request.user
+        if (
+            request.POST.get("action", "approve") == "approve"
+            and "start_time" not in request.POST
+        ):
+            entry.status = WorkEntry.Status.APPROVED
+            entry.approved_by = request.user
+            entry.save()
+            return redirect("hr:work_day", work_date=work_date)
+
+        form = WorkEntryForm(request.POST, instance=entry)
+        if not form.is_valid():
+            for field in form.fields.values():
+                field.widget.attrs["form"] = f"entry-form-{entry.pk}"
+            entries = self.get_entries_queryset(request).filter(
+                work_date=work_date,
+            ).select_related("employee", "employee__user")
+            entry_rows = [
+                {
+                    "entry": current_entry,
+                    "form": (
+                        form
+                        if current_entry.pk == entry.pk
+                        else self._entry_form(current_entry)
+                    ),
+                    "form_id": f"entry-form-{current_entry.pk}",
+                }
+                for current_entry in entries
+            ]
+            return render(
+                request,
+                self.template_name,
+                {
+                    "show_work_day": True,
+                    "employee_day": self.employee_only,
+                    "work_date": work_date,
+                    "work_entries": entries,
+                    "entry_rows": entry_rows,
+                },
+                status=400,
+            )
+
+        entry = form.save(commit=False)
+        if request.POST.get("action") == "approve":
+            entry.status = WorkEntry.Status.APPROVED
+            entry.approved_by = request.user
         entry.save()
         return redirect("hr:work_day", work_date=work_date)
+
+    @staticmethod
+    def _entry_form(entry):
+        form = WorkEntryForm(instance=entry)
+        for field in form.fields.values():
+            field.widget.attrs["form"] = f"entry-form-{entry.pk}"
+        return form
 
     def get_entries_queryset(self, request):
         return WorkEntry.objects.all()

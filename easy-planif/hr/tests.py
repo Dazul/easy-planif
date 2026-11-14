@@ -202,6 +202,27 @@ class WorkDayViewTest(TestCase):
         self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
         self.assertEqual(self.entry.approved_by, self.staff)
 
+    def test_staff_can_edit_and_save_entry(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "start_time": "09:00",
+                "end_time": "18:00",
+                "break_minutes": "45",
+                "notes": "Updated project",
+                "action": "save",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.start_time, time(9, 0))
+        self.assertEqual(self.entry.break_minutes, 45)
+        self.assertEqual(self.entry.notes, "Updated project")
+
 
 class EmployeeWorkCalendarViewTest(TestCase):
     def setUp(self):
