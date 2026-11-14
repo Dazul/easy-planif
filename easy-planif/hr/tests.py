@@ -154,6 +154,55 @@ class WorkCalendarViewTest(TestCase):
         self.assertEqual(response.status_code, 403)
 
 
+class WorkDayViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="day-manager",
+            password="password",
+            is_staff=True,
+        )
+        employee_user = CustomUser.objects.create_user(
+            username="day-employee",
+            password="password",
+        )
+        employee = Employee.objects.create(
+            user=employee_user,
+            employee_number="DAY001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        self.entry = WorkEntry.objects.create(
+            employee=employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+            notes="Client project",
+        )
+
+    def test_staff_can_view_day_details(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/2026-10-08/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Client project")
+        self.assertContains(response, "8.50")
+
+    def test_staff_can_approve_entry(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {"entry_id": self.entry.pk},
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
+        self.assertEqual(self.entry.approved_by, self.staff)
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(

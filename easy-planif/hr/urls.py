@@ -14,4 +14,9 @@ urlpatterns = [
         views.WorkCalendarView.as_view(),
         name='work_calendar',
     ),
+    path(
+        'hr/time-entries/<slug:work_date>/',
+        views.WorkDayView.as_view(),
+        name='work_day',
+    ),
 ]

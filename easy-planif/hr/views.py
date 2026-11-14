@@ -3,7 +3,7 @@ from datetime import date
 
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
-from django.shortcuts import render
+from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate
 from django.views import View
@@ -105,3 +105,38 @@ class WorkCalendarView(View):
             return int(request.GET.get(name, default))
         except (TypeError, ValueError):
             return default
+
+
+class WorkDayView(View):
+    template_name = "hr.html"
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
+
+    def get(self, request, work_date):
+        entries = WorkEntry.objects.filter(
+            work_date=work_date,
+        ).select_related("employee", "employee__user")
+        return render(
+            request,
+            self.template_name,
+            {
+                "show_work_day": True,
+                "work_date": work_date,
+                "work_entries": entries,
+            },
+        )
+
+    def post(self, request, work_date):
+        entry = get_object_or_404(
+            WorkEntry,
+            pk=request.POST.get("entry_id"),
+            work_date=work_date,
+        )
+        entry.status = WorkEntry.Status.APPROVED
+        entry.approved_by = request.user
+        entry.save()
+        return redirect("hr:work_day", work_date=work_date)
