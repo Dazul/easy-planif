@@ -86,3 +86,9 @@ a {
   font-size: 11px;
   list-style: none;
 }
+
+.user-stats {
+  color: #6c757d;
+  font-size: 12px;
+  white-space: nowrap;
+}

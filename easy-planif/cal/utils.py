@@ -180,6 +180,28 @@ class PlanningCalendar(GlobalCalendar):
                     d += f'<li> {event.tasks} </li>'
         return f'<td style="height:30px;">{pre}<ul> {d} </ul></td>'
 
+    @staticmethod
+    def user_stats(user, month_date):
+        """
+        Return "(assigned days)/(bookable days)" for the calendar month
+        of month_date, where bookable days are days with an availability
+        (standard or if needed) or an assigned task.
+        """
+        assigned = 0
+        bookable = 0
+        events = Event.objects.filter(
+            user=user,
+            date__year=month_date.year,
+            date__month=month_date.month,
+        )
+        for event in events:
+            bookable += 1
+            if not event.is_available:
+                assigned += 1
+        if bookable == 0:
+            return ""
+        return f"{assigned}/{bookable}"
+
     def formatweek(self, theweek, request):
         events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6])
         week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
@@ -189,7 +211,11 @@ class PlanningCalendar(GlobalCalendar):
             if event.user.id not in users.keys():
                 users[event.user.id] = event.user
         for uid, user in users.items():
-            week += f'<tr><td style="height:30px;">{user}</td>'
+            stats = self.user_stats(user, theweek[0])
+            name_cell = f"{user}"
+            if stats:
+                name_cell += f' <span class="user-stats">({stats})</span>'
+            week += f'<tr><td style="height:30px;">{name_cell}</td>'
             for d in theweek:
                 week += self.formatday(d.day, events, uid, request)
             week += '</tr>'

@@ -240,6 +240,109 @@ class PlanningRenderingTest(TestCase):
         self.assertNotContains(response, 'name="event_id" value="2"')
 
 
+class PlanningUserStatsTest(TestCase):
+    def setUp(self):
+        self.planner = CustomUser.objects.create_user(
+            username="planner", password="secret"
+        )
+        assign_task = Permission.objects.get(codename="assign_task")
+        self.planner.user_permissions.add(assign_task)
+
+        self.worker = CustomUser.objects.create_user(
+            username="worker", password="secret"
+        )
+        self.t1 = Tasks.objects.create(task_name="T1")
+        Authorizations.objects.create(user=self.worker, task=self.t1)
+
+        # October 2019: the displayed week Oct 7-13 lies fully inside it
+        # Mon Oct 7: assigned task
+        Event.objects.create(
+            user=self.worker,
+            tasks=self.t1,
+            date=datetime(2019, 10, 7, tzinfo=timezone.utc),
+            is_available=False,
+        )
+        # Tue Oct 8: standard availability
+        Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 10, 8, tzinfo=timezone.utc),
+        )
+        # Wed Oct 9: if-needed availability (counts as bookable)
+        Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 10, 9, tzinfo=timezone.utc),
+            is_if_needed=True,
+        )
+        # Later in the same month but outside the displayed week:
+        # Thu Oct 24 assigned, Fri Oct 25 available -> included in stats
+        Event.objects.create(
+            user=self.worker,
+            tasks=self.t1,
+            date=datetime(2019, 10, 24, tzinfo=timezone.utc),
+            is_available=False,
+        )
+        Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 10, 25, tzinfo=timezone.utc),
+        )
+        self.client.force_login(self.planner)
+
+    def test_stats_shown_next_to_username(self):
+        # 2 assigned of 5 bookable October days
+        response = self.client.get(
+            reverse("cal:planning"), {"week_date": "2019-10-09"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "(2/5)")
+
+    def test_stats_use_month_of_week_monday(self):
+        # Week straddling Sep/Oct: Monday Sep 30 belongs to September,
+        # so stats must count September events only.
+        Event.objects.create(
+            user=self.worker,
+            date=datetime(2019, 9, 30, tzinfo=timezone.utc),
+        )
+        response = self.client.get(
+            reverse("cal:planning"), {"week_date": "2019-10-03"}
+        )
+        self.assertEqual(response.status_code, 200)
+        # September: 0 assigned of 1 bookable
+        self.assertContains(response, "(0/1)")
+        self.assertNotContains(response, "(2/5)")
+
+    def test_no_bookable_days_hides_stats(self):
+        # A user with events only in another month never appears in the
+        # October week, so no stats are rendered for them.
+        idle = CustomUser.objects.create_user(username="idle", password="secret")
+        Event.objects.create(
+            user=idle,
+            date=datetime(2019, 11, 4, tzinfo=timezone.utc),
+        )
+        response = self.client.get(
+            reverse("cal:planning"), {"week_date": "2019-10-09"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, "idle")
+
+    def test_zero_ratio_still_rendered(self):
+        # A user whose month events are all availabilities shows (0/n)
+        rested = CustomUser.objects.create_user(username="rested", password="secret")
+        Event.objects.create(
+            user=rested,
+            date=datetime(2019, 10, 7, tzinfo=timezone.utc),
+        )
+        Event.objects.create(
+            user=rested,
+            date=datetime(2019, 10, 8, tzinfo=timezone.utc),
+            is_if_needed=True,
+        )
+        response = self.client.get(
+            reverse("cal:planning"), {"week_date": "2019-10-09"}
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "(0/2)")
+
+
 class CalendarViewTest(TestCase):
     """Note: CalendarView is currently NOT login-protected."""
 
