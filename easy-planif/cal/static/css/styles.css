@@ -92,3 +92,8 @@ a {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.booking-entry {
+  display: inline-block;
+  padding: 0px 4px;
+}

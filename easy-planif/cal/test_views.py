@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from django.contrib.auth.models import Permission
 from django.test import TestCase
@@ -7,7 +7,7 @@ from django.urls import reverse
 from accounts.models import CustomUser
 from tasks.models import Tasks, Authorizations
 
-from .models import Event
+from .models import Event, Booking, BookingType
 
 
 class ToggleReplacementTest(TestCase):
@@ -516,3 +516,71 @@ class CreateEventTest(TestCase):
         response = self.client.post(reverse("cal:event_new"), {})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Event.objects.count(), 0)
+
+class BookingsViewTest(TestCase):
+    def setUp(self):
+        self.viewer = CustomUser.objects.create_user(username="viewer", password="secret")
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        self.booking = Booking.objects.create(
+            booking_name="Class of 2019",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=10,
+            nbr_wheelchair=0,
+            price_adult=10,
+            price_child=10,
+            price_total=100,
+        )
+
+    def url(self, **params):
+        base = reverse("cal:bookings")
+        if params:
+            base += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        return base
+
+    def test_requires_bookings_view_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(self.url())
+        self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_forbidden(self):
+        response = self.client.get(self.url())
+        self.assertEqual(response.status_code, 403)
+
+    def test_booking_rendered_with_type_color(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(self.url(month="2019-10"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Class of 2019")
+        # color code from the booking type is rendered as a left border
+        self.assertContains(response, '#ff0000')
+
+    def test_booking_without_type_rendered_neutral(self):
+        Booking.objects.create(
+            booking_name="No type party",
+            date=date(2019, 10, 6),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Ann",
+            group_leader_address="home",
+            group_leader_email="ann@home.com",
+            nbr_adult=5,
+            nbr_child=0,
+            price_adult=10,
+            price_child=10,
+            price_total=50,
+        )
+        self.client.force_login(self.viewer)
+        response = self.client.get(self.url(month="2019-10"))
+        self.assertContains(response, "No type party")
+        self.assertContains(response, "#ccc")

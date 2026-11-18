@@ -4,7 +4,7 @@ from accounts.models import CustomUser
 from datetime import datetime, timezone, date, time
 
 from tasks.models import Tasks, Authorizations
-from .models import Event
+from .models import Event, Booking, BookingType
 
 
 class EventCreateTest(TestCase):
@@ -166,3 +166,72 @@ class EventDoubleDateTest(TestCase):
         with self.assertRaises(Exception) as context:
             Event.objects.create(user=user, date=d)
         self.assertTrue(isinstance(context.exception, ValidationError))
+def booking_payload(**overrides):
+    payload = dict(
+        booking_name="b1",
+        date=date(2019, 10, 5),
+        hour_start=time(hour=10, minute=0, second=0),
+        hour_end=time(hour=20, minute=0, second=0),
+        group_leader_name="Boby",
+        group_leader_address="home",
+        group_leader_email="boby@home.com",
+        nbr_adult=10,
+        nbr_child=10,
+        nbr_wheelchair=0,
+        price_adult=10,
+        price_child=10,
+        meal_included=False,
+        meal_price_adult=12,
+        meal_price_child=6,
+        price_total=100,
+    )
+    payload.update(overrides)
+    return payload
+
+class CreateBookingTest(TestCase):
+     def test_booking_creation(self):
+         Booking.objects.create(**booking_payload())
+
+class CreateBadTimeBookingTest(TestCase):
+     def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            Booking.objects.create(
+                **booking_payload(
+                    hour_start=time(hour=20, minute=0, second=0),
+                    hour_end=time(hour=10, minute=0, second=0),
+                )
+            )
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class CreateNegativePriceAdultBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            Booking.objects.create(**booking_payload(price_adult=-10))
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class CreateNegativePriceKidBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            Booking.objects.create(**booking_payload(price_child=-10))
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class CreateNegativePriceMealAdultBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            Booking.objects.create(**booking_payload(meal_price_adult=-12))
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class CreateNegativePriceMealKidBookingTest(TestCase):
+    def test_booking_creation(self):
+        with self.assertRaises(Exception) as context:
+            Booking.objects.create(**booking_payload(meal_price_child=-6))
+        self.assertTrue(isinstance(context.exception, ValidationError))
+
+class BookingTypeColorTest(TestCase):
+    def test_default_color(self):
+        t = BookingType.objects.create(booking_type="School")
+        self.assertEqual(t.color, "#17a2b8")
+
+    def test_custom_color(self):
+        t = BookingType.objects.create(booking_type="Birthday", color="#ff0000")
+        self.assertEqual(t.color, "#ff0000")

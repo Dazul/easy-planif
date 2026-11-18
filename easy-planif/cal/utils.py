@@ -2,7 +2,7 @@ from calendar import HTMLCalendar
 
 from tasks.models import Tasks, Authorizations
 from accounts.models import CustomUser
-from .models import Event
+from .models import Event, Booking
 from django.template.loader import render_to_string
 
 class Calendar(HTMLCalendar):
@@ -220,3 +220,53 @@ class PlanningCalendar(GlobalCalendar):
                 week += self.formatday(d.day, events, uid, request)
             week += '</tr>'
         return week
+
+class BookingsCalendar(HTMLCalendar):
+    def __init__(self, year=None, month=None):
+        self.year = year
+        self.month = month
+        super().__init__()
+
+    # formats a day as a td
+    # filter bookings by day
+    def formatday(self, day, bookings):
+        bookings_per_day = bookings.filter(date__day=day)
+        d = ''
+        for booking in bookings_per_day:
+            # color code per booking type (issue #36)
+            color = ''
+            if booking.booking_type and booking.booking_type.color:
+                color = booking.booking_type.color
+            rep = ''
+            if booking.date_report:
+                rep = f' (report: {booking.date_report})'
+            d += (
+                f'<li>'
+                f'<span class="booking-entry" '
+                f'style="border-left: 4px solid {color or "#ccc"};">'
+                f'{booking.booking_name} ({booking.hour_start} -> {booking.hour_end}){rep}'
+                f'</span></li>'
+            )
+        if day != 0:
+            return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
+        return '<td></td>'
+
+    # formats a week as a tr
+    def formatweek(self, theweek, bookings):
+        week = ''
+        for d, weekday in theweek:
+            week += self.formatday(d, bookings)
+        return f'<tr> {week} </tr>'
+
+    # formats a month as a table
+    # filter bookings by year and month
+    def formatmonth(self, withyear=True):
+        bookings = Booking.objects.filter(date__year=self.year, date__month=self.month)
+
+        cal = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        cal += f'{self.formatmonthname(self.year, self.month, withyear=withyear)}\n'
+        cal += f'{self.formatweekheader()}\n'
+        for week in self.monthdays2calendar(self.year, self.month):
+            cal += f'{self.formatweek(week, bookings)}\n'
+        cal += '</table>'
+        return cal
