@@ -82,6 +82,26 @@ class ReplaceRequestTest(TestCase):
         )
         self.assertEqual(ReplacementRequest.objects.count(), 1)
 
+    def test_request_keeps_displayed_week(self):
+        """Requesting from a browsed week returns to that same week,
+        not the real current one."""
+        self.client.force_login(self.replacer)
+        # calendar passes the anchor through to the replace link
+        response = self.client.get(
+            reverse("cal:replacements"), {"week_date": "2019-09-30"}
+        )
+        self.assertContains(
+            response, f"replacements/replace?event_id={self.event.id}&week_date=2019-09-30"
+        )
+        # and the request redirect returns to that week
+        url = self.url(self.event) + "&week_date=2019-09-30"
+        response = self.client.get(url)
+        self.assertRedirects(
+            response,
+            reverse("cal:replacements") + "?week_date=2019-09-30",
+            fetch_redirect_response=False,
+        )
+
     def test_owner_cannot_replace_self(self):
         self.client.force_login(self.owner)
         response = self.client.get(self.url(self.event))

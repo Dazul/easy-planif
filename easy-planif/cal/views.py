@@ -88,7 +88,9 @@ class ReplacementCalendarView(generic.ListView):
 
         week_dates = [monday + timedelta(days=i) for i in range(7)]
 
-        cal = ReplacementCalendar(self.request.user)
+        # same anchor used by the calendar links, so the replace
+        # action returns the user to the week they are viewing
+        cal = ReplacementCalendar(self.request.user, today)
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatweek(week_dates)
         context['replacements'] = mark_safe(html_cal)
@@ -145,7 +147,11 @@ def replace(request):
     if ReplacementRequest.objects.filter(
         event=event, replacement_user=request.user, status=ReplacementRequest.Status.PENDING
     ).exists():
-        return HttpResponseRedirect(reverse("cal:replacements"))
+        return_path = reverse("cal:replacements")
+        week_date = request.GET.get("week_date")
+        if week_date:
+            return_path += f"?week_date={week_date}"
+        return HttpResponseRedirect(return_path)
     # someone else already has a pending request on this event?
     if ReplacementRequest.objects.filter(
         event=event, status=ReplacementRequest.Status.PENDING
@@ -154,7 +160,11 @@ def replace(request):
     ReplacementRequest.objects.create(
         event=event, replacement_user=request.user
     )
-    return HttpResponseRedirect(reverse("cal:replacements"))
+    return_path = reverse("cal:replacements")
+    week_date = request.GET.get("week_date")
+    if week_date:
+        return_path += f"?week_date={week_date}"
+    return HttpResponseRedirect(return_path)
 
 def create_event(request):
     instance = Event()
