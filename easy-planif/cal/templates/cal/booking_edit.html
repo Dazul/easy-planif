@@ -1,5 +1,6 @@
 {% extends 'cal/base.html' %}
 {% load django_bootstrap5 %}
+{% load static %}
 {% block content %}
 <div class="clearfix">
     <nav class="navbar">
@@ -14,4 +15,7 @@
     {% bootstrap_button button_type="submit" content="Save" %}
   </form>
 </div>
+{% endblock %}
+{% block script %}
+<script src="{% static 'js/booking_price.js' %}"></script>
 {% endblock %}

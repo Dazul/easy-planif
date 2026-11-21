@@ -614,7 +614,7 @@ class BookingDetailEditTest(TestCase):
             nbr_wheelchair=0,
             price_adult=10,
             price_child=10,
-            price_total=100,
+            price_total=200,  # 10x10 + 10x10, meal not included
         )
 
     def test_calendar_entry_links_to_detail(self):
@@ -668,7 +668,7 @@ class BookingDetailEditTest(TestCase):
                 "meal_included": "False",
                 "meal_price_adult": "12",
                 "meal_price_child": "6",
-                "price_total": "100",
+                "price_total": "200",  # 10x10 + 10x10, meal not included
             },
         )
         self.assertRedirects(
@@ -770,3 +770,96 @@ class BookingDayViewTest(TestCase):
             reverse("cal:booking_day", args=["2019-10-05"])
         )
         self.assertEqual(response.status_code, 403)
+
+class BookingPriceAutocomputeTest(TestCase):
+    def setUp(self):
+        self.manager = CustomUser.objects.create_user(
+            username="manager", password="secret"
+        )
+        manage_perm = Permission.objects.get(codename="bookings_manager")
+        self.manager.user_permissions.add(manage_perm)
+        self.client.force_login(self.manager)
+
+    def valid_payload(self, **overrides):
+        payload = dict(
+            booking_name="G1",
+            date="2019-10-05",
+            come_all_weather="False",
+            hour_start="10:00",
+            hour_end="20:00",
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult="10",
+            nbr_child="5",
+            nbr_wheelchair="0",
+            price_adult="20",
+            price_child="10",
+            meal_included="True",
+            meal_price_adult="12",
+            meal_price_child="6",
+            price_total="400",  # 10*20 + 5*10 + 10*12 + 5*6
+        )
+        payload.update(overrides)
+        return payload
+
+    def test_correct_total_accepted(self):
+        response = self.client.post(
+            reverse("cal:add_booking"), self.valid_payload()
+        )
+        self.assertRedirects(
+            response, "/bookings", fetch_redirect_response=False
+        )
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_tampered_total_rejected(self):
+        response = self.client.post(
+            reverse("cal:add_booking"),
+            self.valid_payload(price_total="999"),
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered
+        self.assertEqual(Booking.objects.count(), 0)
+        self.assertContains(response, "must be 400")
+
+    def test_meal_excluded_from_total(self):
+        # meal_included False: meal prices must not count
+        response = self.client.post(
+            reverse("cal:add_booking"),
+            self.valid_payload(meal_included="False", price_total="250"),
+        )
+        self.assertRedirects(
+            response, "/bookings", fetch_redirect_response=False
+        )
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_edit_form_rejects_wrong_total_too(self):
+        booking = Booking.objects.create(
+            booking_name="G1",
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=5,
+            price_adult=20,
+            price_child=10,
+            meal_included=True,
+            meal_price_adult=12,
+            meal_price_child=6,
+            price_total=400,
+            last_author=self.manager,
+        )
+        response = self.client.post(
+            reverse("cal:booking_edit", args=[booking.id]),
+            self.valid_payload(price_total="1"),
+        )
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.price_total, 400)
+
+    def test_js_hooks_present_on_form(self):
+        response = self.client.get(reverse("cal:add_booking"))
+        self.assertContains(response, "data-price-total")
+        self.assertContains(response, "data-price-part")
