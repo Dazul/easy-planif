@@ -115,10 +115,10 @@ class ReplacementCalendar(Calendar):
                         f'(requested by {pending.replacement_user})</li>'
                     )
                 elif Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
-                    d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</li>'
+                    d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</a></li>'
                 else:
                     d += f'<li> {event.tasks} </li>'
-        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+        return f'<td class="day"><ul> {d} </ul></td>'
 
     def weekheader(self, theweek):
         w = '<tr><th>User</th>'
@@ -130,14 +130,14 @@ class ReplacementCalendar(Calendar):
     # formats a week as a tr
     def formatweek(self, theweek):
         events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6], is_replaceable=True)
-        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar replacements">\n'
         week += self.weekheader(theweek)
         users = {}
         for event in events:
             if event.user.id not in users.keys():
                 users[event.user.id] = event.user
         for uid, user in users.items():
-            week += f'<tr><td style="height:30px;">{user}</td>'
+            week += f'<tr><td class="user-label">{user}</td>'
             for d in theweek:
                 week += self.formatday(d.day, events, uid)
             week += '</tr>'

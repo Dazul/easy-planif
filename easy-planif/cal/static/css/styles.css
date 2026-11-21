@@ -124,3 +124,29 @@ a {
 .calendar li {
   overflow-wrap: break-word;
 }
+
+/* Replacements week view: wider day boxes so entries like
+   "Task (requested by someone)" wrap inside the box instead of
+   spilling over the borders. */
+.calendar.replacements td {
+  height: 80px;
+  min-width: 140px;
+  padding: 5px;
+  vertical-align: top;
+}
+
+.calendar.replacements td.user-label {
+  height: auto;
+  min-width: 0;
+  width: 120px;
+}
+
+.calendar.replacements ul {
+  height: auto;
+  padding: 0 5px 0 20px;
+  margin-bottom: 0;
+}
+
+.calendar.replacements li {
+  overflow-wrap: break-word;
+}
