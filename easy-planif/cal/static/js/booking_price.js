@@ -2,8 +2,9 @@
 //   adults * price_adult + children * price_child
 //   (+ meal prices when the meal is included)
 // Inputs opt in via data-price-part, the total via data-price-total.
-// The total stays editable so a manager can still override it, but
-// the server re-checks the value anyway.
+// The total field is read-only; this script fills it as the user
+// types, and the server re-checks the value anyway. Loaded with
+// defer (it needs the form to exist).
 (function () {
     var total = document.querySelector('[data-price-total]');
     if (!total) return;
