@@ -50,6 +50,13 @@
           {% endfor %}
         </tbody>
       </table>
+    {% elif employee_payroll_profile_missing %}
+      <div class="d-flex justify-content-between align-items-center my-4">
+        <h1>My payroll - {{ employee_payroll_month|date:"F Y" }}</h1>
+      </div>
+      <div class="alert alert-warning" role="alert">
+        No employee profile is associated with your account.
+      </div>
     {% elif show_employee_payroll %}
       <div class="d-flex justify-content-between align-items-center my-4">
         <a class="btn btn-outline-primary"

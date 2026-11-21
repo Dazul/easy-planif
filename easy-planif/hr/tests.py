@@ -533,6 +533,21 @@ class EmployeePayrollViewTest(TestCase):
         self.assertContains(response, "year=2026&month=11")
         self.assertContains(response, "year=2027&month=1")
 
+    def test_user_without_employee_profile_sees_friendly_payroll_message(self):
+        regular_user = CustomUser.objects.create_user(
+            username="regular-payroll-user",
+            password="test-password",
+        )
+        self.client.force_login(regular_user)
+
+        response = self.client.get("/hr/my-payroll/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No employee profile is associated with your account.",
+        )
+
 
 class WorkEntryModelTest(TestCase):
     def setUp(self):

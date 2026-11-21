@@ -175,9 +175,10 @@ class EmployeePayrollView(View):
         return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
-        employee = get_object_or_404(
-            Employee.objects.select_related("user"),
-            user=request.user,
+        employee = (
+            Employee.objects.select_related("user")
+            .filter(user=request.user)
+            .first()
         )
         today = localdate()
         year = self._get_month_value(request, "year", today.year)
@@ -186,6 +187,16 @@ class EmployeePayrollView(View):
             year, month = today.year, today.month
 
         period_month = date(year, month, 1)
+        if employee is None:
+            return render(
+                request,
+                self.template_name,
+                {
+                    "employee_payroll_profile_missing": True,
+                    "employee_payroll_month": period_month,
+                },
+            )
+
         entries = WorkEntry.objects.filter(
             employee=employee,
             work_date__year=year,
