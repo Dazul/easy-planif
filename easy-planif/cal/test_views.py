@@ -643,6 +643,11 @@ class BookingDetailEditTest(TestCase):
 
     def test_manager_can_edit_booking(self):
         self.client.force_login(self.manager)
+        # GET the edit form first to ensure it renders
+        get_response = self.client.get(
+            reverse("cal:booking_edit", args=[self.booking.id])
+        )
+        self.assertEqual(get_response.status_code, 200)
         response = self.client.post(
             reverse("cal:booking_edit", args=[self.booking.id]),
             {
