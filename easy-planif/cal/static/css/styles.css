@@ -107,11 +107,8 @@ a {
   vertical-align: top;
 }
 
-/* Override the global .calendar ul rules for the bookings table:
-   don't force full height (that draws a scrollbar in every cell) but
-   cap the list so overflow scrolls inside the box. */
-.calendar.bookings ul {
-  height: auto;
+.calendar ul {
+  box-sizing: border-box;
   max-height: 84px;
   overflow-y: auto;
   margin-bottom: 0;
