@@ -89,9 +89,13 @@ class PayrollSummaryView(View):
         )
         entry.is_paid = True
         entry.save(update_fields=["is_paid"])
-        return redirect(
+        filter_employee_id = request.POST.get("filter_employee_id")
+        redirect_url = (
             f"{request.path}?year={period_month.year}&month={period_month.month}"
         )
+        if filter_employee_id:
+            redirect_url += f"&employee_id={filter_employee_id}"
+        return redirect(redirect_url)
 
     def render_summary(self, request):
         today = localdate()
@@ -101,11 +105,23 @@ class PayrollSummaryView(View):
             year, month = today.year, today.month
 
         period_month = date(year, month, 1)
+        selected_employee_id = request.GET.get("employee_id")
+        selected_employee = None
+        if selected_employee_id:
+            try:
+                selected_employee = Employee.objects.select_related("user").get(
+                    pk=int(selected_employee_id)
+                )
+            except (Employee.DoesNotExist, TypeError, ValueError):
+                selected_employee = None
+
         entries = WorkEntry.objects.filter(
             work_date__year=year,
             work_date__month=month,
             status=WorkEntry.Status.APPROVED,
         ).select_related("employee", "employee__user")
+        if selected_employee:
+            entries = entries.filter(employee=selected_employee)
         rows = []
         for entry in entries:
             due = (
@@ -137,10 +153,16 @@ class PayrollSummaryView(View):
             work_entry__isnull=True,
             approved_by__isnull=False,
         )
+        if selected_employee:
+            legacy_payments = legacy_payments.filter(
+                employee=selected_employee
+            )
         total_paid += sum(
             (payment.amount for payment in legacy_payments),
             Decimal("0.00"),
         )
+        total_remaining = total_due - total_paid
+        employees = Employee.objects.select_related("user").all()
 
         return render(
             request,
@@ -155,6 +177,9 @@ class PayrollSummaryView(View):
                 "payroll_total_due": total_due,
                 "payroll_total_paid": total_paid,
                 "payroll_balance": total_due - total_paid,
+                "payroll_remaining": total_remaining,
+                "payroll_employees": employees,
+                "payroll_selected_employee": selected_employee,
             },
         )
 

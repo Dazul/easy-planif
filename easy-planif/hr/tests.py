@@ -464,6 +464,42 @@ class PayrollSummaryViewTest(TestCase):
         self.assertContains(response, "year=2025&month=12")
         self.assertContains(response, "year=2026&month=2")
 
+    def test_staff_can_filter_payroll_by_employee_and_see_totals(self):
+        other_user = CustomUser.objects.create_user(
+            username="other-summary-employee",
+            password="test-password",
+        )
+        other_employee = Employee.objects.create(
+            user=other_user,
+            employee_number="SUM002",
+            hourly_rate="40.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=other_employee,
+            work_date=date(2026, 10, 9),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            f"/hr/payroll/?year=2026&month=10&employee_id={self.employee.pk}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Already paid")
+        self.assertContains(response, "Remaining to pay")
+        self.assertContains(response, "150.00")
+        self.assertContains(response, "200.00")
+        row_employees = {
+            row["employee"].pk
+            for row in response.context["payroll_rows"]
+        }
+        self.assertEqual(row_employees, {self.employee.pk})
+
     def test_payments_are_counted_even_on_non_worked_days(self):
         PayrollPayment.objects.create(
             employee=self.employee,
