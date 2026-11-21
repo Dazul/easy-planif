@@ -1,0 +1,21 @@
+{% extends 'cal/base.html' %}
+{% load django_bootstrap5 %}
+{% load static %}
+{% block content %}
+<div class="clearfix">
+    <nav class="navbar">
+	<a class="btn btn-info left" href="{% url 'cal:bookings' %}?month={{ form.instance.date|date:'Y-n' }}"> Back to bookings </a>
+    </nav>
+</div>
+<h2>Edit booking</h2>
+<div class="clearfix">
+  <form action="" method="post">
+    {% csrf_token %}
+    {% bootstrap_form form %}
+    {% bootstrap_button button_type="submit" content="Save" %}
+  </form>
+</div>
+{% endblock %}
+{% block script %}
+<script src="{% static 'js/booking_price.js' %}"></script>
+{% endblock %}

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 
 from django.contrib.auth.models import Permission
 from django.test import TestCase
@@ -7,7 +7,7 @@ from django.urls import reverse
 from accounts.models import CustomUser
 from tasks.models import Tasks, Authorizations
 
-from .models import Event
+from .models import Event, Booking, BookingType
 
 
 class ToggleReplacementTest(TestCase):
@@ -516,3 +516,350 @@ class CreateEventTest(TestCase):
         response = self.client.post(reverse("cal:event_new"), {})
         self.assertEqual(response.status_code, 400)
         self.assertEqual(Event.objects.count(), 0)
+
+class BookingsViewTest(TestCase):
+    def setUp(self):
+        self.viewer = CustomUser.objects.create_user(username="viewer", password="secret")
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        self.booking = Booking.objects.create(
+            booking_name="Class of 2019",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=10,
+            nbr_wheelchair=0,
+            price_adult=10,
+            price_child=10,
+            price_total=100,
+        )
+
+    def url(self, **params):
+        base = reverse("cal:bookings")
+        if params:
+            base += "?" + "&".join(f"{k}={v}" for k, v in params.items())
+        return base
+
+    def test_requires_bookings_view_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(self.url())
+        self.assertEqual(response.status_code, 403)
+
+    def test_anonymous_forbidden(self):
+        response = self.client.get(self.url())
+        self.assertEqual(response.status_code, 403)
+
+    def test_booking_rendered_with_type_color(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(self.url(month="2019-10"))
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Class of 2019")
+        # color code from the booking type as the entry background
+        self.assertContains(response, 'background-color: #ff0000;')
+
+    def test_booking_without_type_rendered_neutral(self):
+        Booking.objects.create(
+            booking_name="No type party",
+            date=date(2019, 10, 6),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Ann",
+            group_leader_address="home",
+            group_leader_email="ann@home.com",
+            nbr_adult=5,
+            nbr_child=0,
+            price_adult=10,
+            price_child=10,
+            price_total=50,
+        )
+        self.client.force_login(self.viewer)
+        response = self.client.get(self.url(month="2019-10"))
+        self.assertContains(response, "No type party")
+        # untyped bookings get a neutral grey background
+        self.assertContains(response, "background-color: #eeeeee;")
+
+class BookingDetailEditTest(TestCase):
+    def setUp(self):
+        self.manager = CustomUser.objects.create_user(
+            username="manager", password="secret"
+        )
+        manage_perm = Permission.objects.get(codename="bookings_manager")
+        self.manager.user_permissions.add(manage_perm)
+        self.viewer = CustomUser.objects.create_user(
+            username="viewer", password="secret"
+        )
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        self.booking = Booking.objects.create(
+            booking_name="Class of 2019",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=10,
+            nbr_wheelchair=0,
+            price_adult=10,
+            price_child=10,
+            price_total=200,  # 10x10 + 10x10, meal not included
+        )
+
+    def test_calendar_entry_links_to_detail(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:bookings"), {"month": "2019-10"}
+        )
+        self.assertContains(response, f'href="bookings/{self.booking.id}"')
+
+    def test_detail_view_shows_fields(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:booking_detail", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Class of 2019")
+        self.assertContains(response, "Boby")
+
+    def test_detail_requires_view_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(
+            reverse("cal:booking_detail", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_manager_can_edit_booking(self):
+        self.client.force_login(self.manager)
+        # GET the edit form first to ensure it renders
+        get_response = self.client.get(
+            reverse("cal:booking_edit", args=[self.booking.id])
+        )
+        self.assertEqual(get_response.status_code, 200)
+        response = self.client.post(
+            reverse("cal:booking_edit", args=[self.booking.id]),
+            {
+                "booking_name": "Renamed group",
+                "booking_type": self.bt.id,
+                "date": "2019-10-05",
+                "come_all_weather": "False",
+                "hour_start": "10:00",
+                "hour_end": "20:00",
+                "group_leader_name": "Boby",
+                "group_leader_address": "home",
+                "group_leader_email": "boby@home.com",
+                "nbr_adult": "10",
+                "nbr_child": "10",
+                "nbr_wheelchair": "0",
+                "price_adult": "10",
+                "price_child": "10",
+                "meal_included": "False",
+                "meal_price_adult": "12",
+                "meal_price_child": "6",
+                "price_total": "200",  # 10x10 + 10x10, meal not included
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse("cal:booking_detail", args=[self.booking.id]),
+            fetch_redirect_response=False,
+        )
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.booking_name, "Renamed group")
+        self.assertEqual(self.booking.last_author, self.manager)
+
+    def test_viewer_cannot_edit_booking(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:booking_edit", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 403)
+
+class BookingDayViewTest(TestCase):
+    def setUp(self):
+        self.viewer = CustomUser.objects.create_user(username="viewer", password="secret")
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        # two bookings on the same day, one on another day
+        self.morning = Booking.objects.create(
+            booking_name="Morning group",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(9, 0),
+            hour_end=time(12, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10, nbr_child=0, price_adult=10, price_child=0,
+            price_total=100,
+        )
+        self.afternoon = Booking.objects.create(
+            booking_name="Afternoon group",
+            date=date(2019, 10, 5),
+            hour_start=time(14, 0),
+            hour_end=time(18, 0),
+            group_leader_name="Ann",
+            group_leader_address="home",
+            group_leader_email="ann@home.com",
+            nbr_adult=5, nbr_child=2, price_adult=10, price_child=10,
+            price_total=70,
+        )
+        Booking.objects.create(
+            booking_name="Other day group",
+            date=date(2019, 10, 6),
+            hour_start=time(9, 0),
+            hour_end=time(12, 0),
+            group_leader_name="Max",
+            group_leader_address="home",
+            group_leader_email="max@home.com",
+            nbr_adult=1, nbr_child=0, price_adult=10, price_child=0,
+            price_total=10,
+        )
+        self.client.force_login(self.viewer)
+
+    def test_month_view_links_day_to_day_view(self):
+        response = self.client.get(
+            reverse("cal:bookings"), {"month": "2019-10"}
+        )
+        self.assertContains(response, "bookings/day/2019-10-05")
+
+    def test_day_view_lists_only_that_day_sorted_by_hour(self):
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Morning group")
+        self.assertContains(response, "Afternoon group")
+        self.assertNotContains(response, "Other day group")
+        # sorted by start hour: morning before afternoon
+        self.assertLess(
+            response.content.decode().index("Morning group"),
+            response.content.decode().index("Afternoon group"),
+        )
+
+    def test_day_view_links_to_details(self):
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertContains(
+            response,
+            reverse("cal:booking_detail", args=[self.morning.id]),
+        )
+        self.assertContains(
+            response,
+            reverse("cal:booking_detail", args=[self.afternoon.id]),
+        )
+
+    def test_day_view_requires_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertEqual(response.status_code, 403)
+
+class BookingPriceAutocomputeTest(TestCase):
+    def setUp(self):
+        self.manager = CustomUser.objects.create_user(
+            username="manager", password="secret"
+        )
+        manage_perm = Permission.objects.get(codename="bookings_manager")
+        self.manager.user_permissions.add(manage_perm)
+        self.client.force_login(self.manager)
+
+    def valid_payload(self, **overrides):
+        payload = dict(
+            booking_name="G1",
+            date="2019-10-05",
+            come_all_weather="False",
+            hour_start="10:00",
+            hour_end="20:00",
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult="10",
+            nbr_child="5",
+            nbr_wheelchair="0",
+            price_adult="20",
+            price_child="10",
+            meal_included="True",
+            meal_price_adult="12",
+            meal_price_child="6",
+            price_total="400",  # 10*20 + 5*10 + 10*12 + 5*6
+        )
+        payload.update(overrides)
+        return payload
+
+    def test_correct_total_accepted(self):
+        response = self.client.post(
+            reverse("cal:add_booking"), self.valid_payload()
+        )
+        self.assertRedirects(
+            response, "/bookings", fetch_redirect_response=False
+        )
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_tampered_total_rejected(self):
+        response = self.client.post(
+            reverse("cal:add_booking"),
+            self.valid_payload(price_total="999"),
+        )
+        self.assertEqual(response.status_code, 200)  # form re-rendered
+        self.assertEqual(Booking.objects.count(), 0)
+        self.assertContains(response, "must be 400")
+
+    def test_meal_excluded_from_total(self):
+        # meal_included False: meal prices must not count
+        response = self.client.post(
+            reverse("cal:add_booking"),
+            self.valid_payload(meal_included="False", price_total="250"),
+        )
+        self.assertRedirects(
+            response, "/bookings", fetch_redirect_response=False
+        )
+        self.assertEqual(Booking.objects.count(), 1)
+
+    def test_edit_form_rejects_wrong_total_too(self):
+        booking = Booking.objects.create(
+            booking_name="G1",
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=5,
+            price_adult=20,
+            price_child=10,
+            meal_included=True,
+            meal_price_adult=12,
+            meal_price_child=6,
+            price_total=400,
+            last_author=self.manager,
+        )
+        response = self.client.post(
+            reverse("cal:booking_edit", args=[booking.id]),
+            self.valid_payload(price_total="1"),
+        )
+        self.assertEqual(response.status_code, 200)
+        booking.refresh_from_db()
+        self.assertEqual(booking.price_total, 400)
+
+    def test_js_hooks_present_on_form(self):
+        response = self.client.get(reverse("cal:add_booking"))
+        self.assertContains(response, "data-price-total")
+        self.assertContains(response, "data-price-part")

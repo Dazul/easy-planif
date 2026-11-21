@@ -92,3 +92,35 @@ a {
   font-size: 12px;
   white-space: nowrap;
 }
+
+.booking-entry {
+  display: inline-block;
+  padding: 0px 4px;
+  margin-bottom: 2px;
+  border-radius: 3px;
+  color: #000;
+}
+
+/* Month-view day cells: keep entries stacked inside the day box.
+   The list scrolls when there are more bookings than fit.
+
+   Table cells ignore height as a hard cap, so the bookings list gets
+   a fixed pixel height with its own scrollbar; no percentage
+   heights, which table cells resolve inconsistently across browsers
+   (this broke in Firefox). Scoped to the bookings table via the
+   .bookings class; other calendars are untouched. */
+.calendar td {
+  vertical-align: top;
+}
+
+.calendar.bookings ul {
+  box-sizing: border-box;
+  height: 74px;
+  max-height: none;
+  overflow-y: auto;
+  margin-bottom: 0;
+}
+
+.calendar li {
+  overflow-wrap: break-word;
+}

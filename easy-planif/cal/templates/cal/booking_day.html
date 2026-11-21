@@ -1,0 +1,31 @@
+{% extends 'cal/base.html' %}
+{% block content %}
+<div class="clearfix">
+    <nav class="navbar">
+	<a class="btn btn-info left" href="{% url 'cal:bookings' %}?month={{ day|date:'Y-n' }}"> Back to bookings </a>
+    </nav>
+</div>
+<h2>Bookings for {{ day }}</h2>
+<table class="table table-striped">
+  <thead>
+    <tr><th>Name</th><th>Type</th><th>Hours</th><th>Participants</th><th>Total</th></tr>
+  </thead>
+  <tbody>
+    {% for booking in bookings_list %}
+    <tr>
+      <td><a href="{% url 'cal:booking_detail' booking.id %}">{{ booking.booking_name }}</a></td>
+      <td>
+        {% if booking.booking_type %}
+          <span class="badge" style="background-color: {{ booking.booking_type.color }};">{{ booking.booking_type }}</span>
+        {% else %} - {% endif %}
+      </td>
+      <td>{{ booking.hour_start }} &rarr; {{ booking.hour_end }}</td>
+      <td>{{ booking.nbr_adult }} adults, {{ booking.nbr_child }} children, {{ booking.nbr_wheelchair }} wheelchair</td>
+      <td>{{ booking.price_total }}</td>
+    </tr>
+    {% empty %}
+    <tr><td colspan="5">No bookings for this day.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}
