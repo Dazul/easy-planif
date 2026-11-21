@@ -9,9 +9,10 @@ from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 
 from .forms import EventForm, AddBookingForm, AddBookingTypeForm
-from .models import Event, Booking, BookingType
+from .models import Event, Booking, BookingType, ReplacementRequest
 from .utils import Calendar, GlobalCalendar, PlanningCalendar, ReplacementCalendar, BookingsCalendar
 from tasks.models import Tasks, Authorizations
 from datetime import timedelta
@@ -111,12 +112,37 @@ class PlanningView(PermissionRequiredMixin, generic.ListView):
 
         return context
 
+@login_required
 def replace(request):
-    event = Event.objects.filter(id=request.GET.get('event_id'))[0]
-    event.user = request.user
-    event.is_replaceable = False
-    event.save()
-    return HttpResponseRedirect("/")
+    """Register interest in taking a replaceable event.
+
+    Creates a pending ReplacementRequest instead of taking the event
+    directly; an HR staff member then validates or refuses it (the
+    validation applies the actual user swap).
+    """
+    event = get_object_or_404(Event, id=request.GET.get("event_id"))
+    if event.user == request.user:
+        return HttpResponseForbidden("You cannot replace yourself.")
+    if not event.is_replaceable:
+        return HttpResponseForbidden("This event is not replaceable.")
+    if not Authorizations.objects.filter(
+        user=request.user, task=event.tasks
+    ).exists():
+        return HttpResponseForbidden("You are not authorized for this task.")
+    # already requested by this user?
+    if ReplacementRequest.objects.filter(
+        event=event, replacement_user=request.user, status=ReplacementRequest.Status.PENDING
+    ).exists():
+        return HttpResponseRedirect(reverse("cal:replacements"))
+    # someone else already has a pending request on this event?
+    if ReplacementRequest.objects.filter(
+        event=event, status=ReplacementRequest.Status.PENDING
+    ).exists():
+        return HttpResponseForbidden("Someone already requested this replacement.")
+    ReplacementRequest.objects.create(
+        event=event, replacement_user=request.user
+    )
+    return HttpResponseRedirect(reverse("cal:replacements"))
 
 def create_event(request):
     instance = Event()

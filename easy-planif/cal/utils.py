@@ -2,7 +2,7 @@ from calendar import HTMLCalendar
 
 from tasks.models import Tasks, Authorizations
 from accounts.models import CustomUser
-from .models import Event, Booking
+from .models import Event, Booking, ReplacementRequest
 from django.template.loader import render_to_string
 
 class Calendar(HTMLCalendar):
@@ -105,7 +105,16 @@ class ReplacementCalendar(Calendar):
         d = ''
         if len(events_per_day) != 0:
             for event in events_per_day:
-                if Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
+                pending = ReplacementRequest.objects.filter(
+                    event=event, status=ReplacementRequest.Status.PENDING
+                ).first()
+                if pending:
+                    # waiting for HR validation: not takeable anymore
+                    d += (
+                        f'<li> {event.tasks} '
+                        f'(requested by {pending.replacement_user})</li>'
+                    )
+                elif Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
                     d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</li>'
                 else:
                     d += f'<li> {event.tasks} </li>'

@@ -1,0 +1,55 @@
+<h1>Replacement requests</h1>
+<p>Users requesting to take over another user's replaceable slot. Validating applies the replacement; refusing frees the slot again.</p>
+
+<div>
+  <a class="btn {% if status_filter == 'pending' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+     href="{% url 'hr:replacement_requests' %}?status=pending">Pending</a>
+  <a class="btn {% if status_filter == 'all' %}btn-primary{% else %}btn-outline-primary{% endif %}"
+     href="{% url 'hr:replacement_requests' %}?status=all">All</a>
+</div>
+
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Requested</th>
+      <th>Date</th>
+      <th>Task</th>
+      <th>Current owner</th>
+      <th>Replacement</th>
+      <th>Status</th>
+      <th>Reviewed by</th>
+      <th>Action</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for req in replacement_requests %}
+      <tr>
+        <td>{{ req.created_at|date:"Y-m-d H:i" }}</td>
+        <td>{{ req.event.date|date:"Y-m-d H:i" }}</td>
+        <td>{{ req.event.tasks }}</td>
+        <td>{{ req.event.user }}</td>
+        <td>{{ req.replacement_user }}</td>
+        <td>{{ req.get_status_display }}</td>
+        <td>{% if req.reviewed_by %}{{ req.reviewed_by }}{% else %}-{% endif %}</td>
+        <td>
+          {% if req.status == "pending" %}
+            <form method="post" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="request_id" value="{{ req.pk }}">
+              <button type="submit" name="action" value="validate" class="btn btn-success btn-sm">Validate</button>
+            </form>
+            <form method="post" class="d-inline">
+              {% csrf_token %}
+              <input type="hidden" name="request_id" value="{{ req.pk }}">
+              <button type="submit" name="action" value="refuse" class="btn btn-danger btn-sm">Refuse</button>
+            </form>
+          {% else %}
+            -
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="8">No replacement requests.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

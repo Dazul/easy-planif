@@ -2,12 +2,15 @@ import calendar
 from datetime import date
 from decimal import Decimal
 
+from django.contrib import messages
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
 from django.utils.timezone import localdate
 from django.views import View
+
+from cal.models import ReplacementRequest
 
 from .forms import WorkEntryCreateForm, WorkEntryForm
 from .models import Employee, PayrollPayment, WorkEntry
@@ -443,3 +446,52 @@ class EmployeeWorkDayView(WorkDayView):
 
     def post(self, request, work_date):
         raise PermissionDenied("Employees cannot approve work entries.")
+
+
+class ReplacementRequestListView(StaffRequiredMixin, View):
+    """HR page listing replacement requests with validate/refuse."""
+
+    template_name = "hr.html"
+
+    def get(self, request):
+        requests = (
+            ReplacementRequest.objects.select_related(
+                "event", "event__user", "event__tasks", "replacement_user"
+            )
+            .order_by("-created_at")
+        )
+        status_filter = request.GET.get("status", "pending")
+        if status_filter not in ("all", "pending"):
+            status_filter = "pending"
+        if status_filter == "pending":
+            requests = requests.filter(status=ReplacementRequest.Status.PENDING)
+        return render(
+            request,
+            self.template_name,
+            {
+                "replacement_requests": requests,
+                "status_filter": status_filter,
+                "show_replacement_requests": True,
+            },
+        )
+
+    def post(self, request):
+        action = request.POST.get("action")
+        request_obj = get_object_or_404(
+            ReplacementRequest.objects.select_related(
+                "event", "event__user", "event__tasks", "replacement_user"
+            ),
+            pk=request.POST.get("request_id"),
+            status=ReplacementRequest.Status.PENDING,
+        )
+        try:
+            if action == "validate":
+                request_obj.validate_replacement(request.user)
+            elif action == "refuse":
+                request_obj.refuse_replacement(request.user)
+            else:
+                raise PermissionDenied("Unknown action.")
+        except ValidationError:
+            # e.g. authorization disappeared between request and review
+            messages.error(request, "The replacement could not be applied.")
+        return redirect("hr:replacement_requests")

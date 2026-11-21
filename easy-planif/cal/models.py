@@ -43,6 +43,84 @@ class Event(models.Model):
         self.full_clean()
         super().save(*args, **kwargs)
 
+class ReplacementRequest(models.Model):
+    """A user offering to take another user's replaceable event.
+
+    Created when an authorized user clicks a replaceable event; it
+    takes effect only once an HR staff member validates it.
+    """
+
+    class Status(models.TextChoices):
+        PENDING = "pending", "Pending"
+        VALIDATED = "validated", "Validated"
+        REFUSED = "refused", "Refused"
+
+    event = models.ForeignKey(
+        Event,
+        on_delete=models.CASCADE,
+        related_name="replacement_requests",
+    )
+    replacement_user = models.ForeignKey(
+        CustomUser,
+        on_delete=models.CASCADE,
+        related_name="replacement_requests",
+    )
+    status = models.CharField(
+        max_length=10, choices=Status.choices, default=Status.PENDING
+    )
+    reviewed_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="reviewed_replacement_requests",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        # one live request per event: a refused request stays for the
+        # record, so uniqueness only covers the pending one
+        constraints = [
+            models.UniqueConstraint(
+                fields=["event"],
+                condition=models.Q(status="pending"),
+                name="unique_pending_replacement_request_per_event",
+            )
+        ]
+
+    def __str__(self):
+        return (
+            f"{self.replacement_user} replaces {self.event.user} "
+            f"on {self.event.date} ({self.status})"
+        )
+
+    def validate_replacement(self, reviewed_by):
+        """Apply the replacement to the event. Must be called on a
+        pending request only."""
+        if self.status != self.Status.PENDING:
+            raise ValidationError("Only pending requests can be validated.")
+        if not Authorizations.objects.filter(
+            user=self.replacement_user, task=self.event.tasks
+        ).exists():
+            raise ValidationError(
+                "The replacement user is not authorized for the task."
+            )
+        event = self.event
+        event.user = self.replacement_user
+        event.is_replaceable = False
+        event.save()  # re-runs full_clean(), re-checking authorizations
+        self.status = self.Status.VALIDATED
+        self.reviewed_by = reviewed_by
+        self.save()
+
+    def refuse_replacement(self, reviewed_by):
+        """Refuse the request; the slot becomes takeable again."""
+        if self.status != self.Status.PENDING:
+            raise ValidationError("Only pending requests can be refused.")
+        self.status = self.Status.REFUSED
+        self.reviewed_by = reviewed_by
+        self.save()
+
 class BookingType(models.Model):
     booking_type = models.CharField(max_length=100)
     color = models.CharField(
