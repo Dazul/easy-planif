@@ -175,6 +175,35 @@ class WorkCalendarViewTest(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "calendar-day-future")
 
+    def test_calendar_includes_entries_from_adjacent_visible_dates(self):
+        entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 31),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        december_entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 12, 1),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2026&month=11")
+
+        self.assertEqual(response.status_code, 200)
+        visible_entries = [
+            current_entry
+            for week in response.context["calendar_weeks"]
+            for day in week
+            for current_entry in day["entries"]
+        ]
+        self.assertIn(entry, visible_entries)
+        self.assertIn(december_entry, visible_entries)
+
 
 class WorkDayViewTest(TestCase):
     def setUp(self):

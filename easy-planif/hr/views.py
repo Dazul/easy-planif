@@ -331,15 +331,18 @@ class WorkCalendarView(View):
             year, month = today.year, today.month
 
         first_day = date(year, month, 1)
+        month_calendar = calendar.Calendar(firstweekday=0)
+        visible_weeks = month_calendar.monthdatescalendar(year, month)
+        visible_start = visible_weeks[0][0]
+        visible_end = visible_weeks[-1][-1]
         entries = self.get_entries_queryset(request).filter(
-            work_date__year=year,
-            work_date__month=month,
+            work_date__gte=visible_start,
+            work_date__lte=visible_end,
         ).select_related("employee", "employee__user")
         entries_by_date = {}
         for entry in entries:
             entries_by_date.setdefault(entry.work_date, []).append(entry)
 
-        month_calendar = calendar.Calendar(firstweekday=0)
         weeks = [
             [
                 {
