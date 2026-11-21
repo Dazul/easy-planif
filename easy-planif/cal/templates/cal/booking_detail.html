@@ -1,0 +1,46 @@
+{% extends 'cal/base.html' %}
+{% block content %}
+<div class="clearfix">
+    <nav class="navbar">
+	<a class="btn btn-info left" href="{% url 'cal:bookings' %}?month={{ booking.date|date:'Y-n' }}"> Back to bookings </a>
+    {% if perms.cal.bookings_manager %}
+    <a class="btn btn-secondary center" href="{% url 'cal:booking_edit' booking.id %}"> Edit booking </a>
+    {% endif %}
+    </nav>
+</div>
+<h2>{{ booking.booking_name }}</h2>
+<table class="table table-striped">
+  <tbody>
+    <tr><th scope="row">Type</th><td>
+      {% if booking.booking_type %}
+        <span class="badge" style="background-color: {{ booking.booking_type.color }};">{{ booking.booking_type }}</span>
+      {% else %} - {% endif %}
+    </td></tr>
+    <tr><th scope="row">Date</th><td>{{ booking.date }}</td></tr>
+    {% if booking.date_report %}
+    <tr><th scope="row">Reported to</th><td>{{ booking.date_report }}</td></tr>
+    {% endif %}
+    <tr><th scope="row">Hours</th><td>{{ booking.hour_start }} &rarr; {{ booking.hour_end }}</td></tr>
+    <tr><th scope="row">Come all weather</th><td>{{ booking.come_all_weather|yesno:"yes,no" }}</td></tr>
+    <tr><th scope="row">Group leader</th><td>{{ booking.group_leader_name }}</td></tr>
+    <tr><th scope="row">Address</th><td>{{ booking.group_leader_address }}</td></tr>
+    <tr><th scope="row">Email</th><td>{{ booking.group_leader_email }}</td></tr>
+    {% if booking.group_leader_phone %}
+    <tr><th scope="row">Phone</th><td>{{ booking.group_leader_phone }}</td></tr>
+    {% endif %}
+    <tr><th scope="row">Participants</th><td>{{ booking.nbr_adult }} adults, {{ booking.nbr_child }} children, {{ booking.nbr_wheelchair }} wheelchair</td></tr>
+    <tr><th scope="row">Prices</th><td>adult {{ booking.price_adult }}, child {{ booking.price_child }}</td></tr>
+    <tr><th scope="row">Meal</th><td>
+      {% if booking.meal_included %}included (adult {{ booking.meal_price_adult }}, child {{ booking.meal_price_child }}){% else %}not included{% endif %}
+    </td></tr>
+    <tr><th scope="row">Total</th><td>{{ booking.price_total }}</td></tr>
+    {% if booking.comments %}
+    <tr><th scope="row">Comments</th><td>{{ booking.comments }}</td></tr>
+    {% endif %}
+    {% if booking.meal_comments %}
+    <tr><th scope="row">Meal comments</th><td>{{ booking.meal_comments }}</td></tr>
+    {% endif %}
+    <tr><th scope="row">Last edited by</th><td>{{ booking.last_author|default:"-" }}</td></tr>
+  </tbody>
+</table>
+{% endblock %}

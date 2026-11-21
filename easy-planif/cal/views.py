@@ -1,4 +1,5 @@
 from django.http import HttpResponse, HttpResponseBadRequest, HttpResponseRedirect, HttpResponseForbidden
+from django.urls import reverse
 from django.contrib.auth.decorators import permission_required
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.mixins import PermissionRequiredMixin
@@ -232,3 +233,26 @@ def add_booking_type(request):
     else:
         form = AddBookingTypeForm()
     return render(request, "cal/add_booking_type.html", {"form": form})
+
+class BookingDetailView(PermissionRequiredMixin, generic.DetailView):
+    model = Booking
+    template_name = 'cal/booking_detail.html'
+    permission_required = 'cal.bookings_view'
+    raise_exception = True
+    context_object_name = 'booking'
+
+@permission_required('cal.bookings_manager', raise_exception=True)
+def edit_booking(request, pk):
+    booking = Booking.objects.get(pk=pk)
+    if request.method == "POST":
+        form = AddBookingForm(request.POST, instance=booking)
+        if form.is_valid():
+            booking = form.save(commit=False)
+            booking.last_author = request.user
+            booking.save()
+            return HttpResponseRedirect(
+                reverse("cal:booking_detail", args=[booking.id])
+            )
+    else:
+        form = AddBookingForm(instance=booking)
+    return render(request, "cal/booking_edit.html", {"form": form})

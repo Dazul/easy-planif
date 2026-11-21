@@ -584,3 +584,99 @@ class BookingsViewTest(TestCase):
         response = self.client.get(self.url(month="2019-10"))
         self.assertContains(response, "No type party")
         self.assertContains(response, "#ccc")
+
+class BookingDetailEditTest(TestCase):
+    def setUp(self):
+        self.manager = CustomUser.objects.create_user(
+            username="manager", password="secret"
+        )
+        manage_perm = Permission.objects.get(codename="bookings_manager")
+        self.manager.user_permissions.add(manage_perm)
+        self.viewer = CustomUser.objects.create_user(
+            username="viewer", password="secret"
+        )
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        self.booking = Booking.objects.create(
+            booking_name="Class of 2019",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(10, 0),
+            hour_end=time(20, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10,
+            nbr_child=10,
+            nbr_wheelchair=0,
+            price_adult=10,
+            price_child=10,
+            price_total=100,
+        )
+
+    def test_calendar_entry_links_to_detail(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:bookings"), {"month": "2019-10"}
+        )
+        self.assertContains(response, f'href="bookings/{self.booking.id}"')
+
+    def test_detail_view_shows_fields(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:booking_detail", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Class of 2019")
+        self.assertContains(response, "Boby")
+
+    def test_detail_requires_view_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(
+            reverse("cal:booking_detail", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_manager_can_edit_booking(self):
+        self.client.force_login(self.manager)
+        response = self.client.post(
+            reverse("cal:booking_edit", args=[self.booking.id]),
+            {
+                "booking_name": "Renamed group",
+                "booking_type": self.bt.id,
+                "date": "2019-10-05",
+                "come_all_weather": "False",
+                "hour_start": "10:00",
+                "hour_end": "20:00",
+                "group_leader_name": "Boby",
+                "group_leader_address": "home",
+                "group_leader_email": "boby@home.com",
+                "nbr_adult": "10",
+                "nbr_child": "10",
+                "nbr_wheelchair": "0",
+                "price_adult": "10",
+                "price_child": "10",
+                "meal_included": "False",
+                "meal_price_adult": "12",
+                "meal_price_child": "6",
+                "price_total": "100",
+            },
+        )
+        self.assertRedirects(
+            response,
+            reverse("cal:booking_detail", args=[self.booking.id]),
+            fetch_redirect_response=False,
+        )
+        self.booking.refresh_from_db()
+        self.assertEqual(self.booking.booking_name, "Renamed group")
+        self.assertEqual(self.booking.last_author, self.manager)
+
+    def test_viewer_cannot_edit_booking(self):
+        self.client.force_login(self.viewer)
+        response = self.client.get(
+            reverse("cal:booking_edit", args=[self.booking.id])
+        )
+        self.assertEqual(response.status_code, 403)

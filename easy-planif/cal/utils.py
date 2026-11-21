@@ -242,10 +242,10 @@ class BookingsCalendar(HTMLCalendar):
                 rep = f' (report: {booking.date_report})'
             d += (
                 f'<li>'
-                f'<span class="booking-entry" '
+                f'<a class="booking-entry" href="bookings/{booking.id}" '
                 f'style="border-left: 4px solid {color or "#ccc"};">'
-                f'{booking.booking_name} ({booking.hour_start} -> {booking.hour_end}){rep}'
-                f'</span></li>'
+                f' {booking.booking_name} ({booking.hour_start} -> {booking.hour_end}){rep}'
+                f'</a></li>'
             )
         if day != 0:
             return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
