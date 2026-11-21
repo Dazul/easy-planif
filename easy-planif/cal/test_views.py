@@ -444,17 +444,18 @@ class PlanningUserStatsTest(TestCase):
 
 
 class CalendarViewTest(TestCase):
-    """Note: CalendarView is currently NOT login-protected."""
+    """CalendarView is login-protected: anonymous users are sent to
+    the login page (part of the issue #41 security fixes)."""
 
     def setUp(self):
         self.user = CustomUser.objects.create_user(
             username="u1", password="secret"
         )
 
-    def test_anonymous_access_allowed(self):
-        # Document current behavior: no @login_required on CalendarView
+    def test_anonymous_redirected_to_login(self):
         response = self.client.get(reverse("cal:calendar"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
 
     def test_logged_in_shows_calendar(self):
         self.client.force_login(self.user)

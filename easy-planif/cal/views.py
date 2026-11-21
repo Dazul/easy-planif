@@ -22,6 +22,10 @@ class CalendarView(generic.ListView):
     model = Event
     template_name = 'cal/calendar.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -43,6 +47,10 @@ class CalendarView(generic.ListView):
 class GlobalCalendarView(generic.ListView):
     model = Event
     template_name = 'cal/global_calendar.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -66,6 +74,10 @@ class GlobalCalendarView(generic.ListView):
 class ReplacementCalendarView(generic.ListView):
     model = Event
     template_name = 'cal/replacements.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
