@@ -38,7 +38,12 @@ class AddBookingForm(ModelForm):
             'meal_included': forms.CheckboxInput(attrs={'data-price-part': 'meal_included'}),
             'meal_price_adult': forms.NumberInput(attrs={'data-price-part': 'meal_price_adult'}),
             'meal_price_child': forms.NumberInput(attrs={'data-price-part': 'meal_price_child'}),
-            'price_total': forms.NumberInput(attrs={'data-price-total': 'true'}),
+            'price_total': forms.NumberInput(attrs={
+                'data-price-total': 'true',
+                # the field is autocomputed client-side; readonly in the
+                # UI, and the server still validates it against the formula
+                'readonly': 'readonly',
+            }),
         }
         exclude = ['last_author']
 
