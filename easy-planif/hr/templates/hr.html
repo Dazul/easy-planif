@@ -218,7 +218,7 @@
               <td>{% if not employee_day and entry.status != "approved" %}{{ form.notes }}{% else %}{{ entry.notes|default:"-" }}{% endif %}</td>
               {% if not employee_day %}<td>
                 {% if entry.is_paid %}
-                  <span class="text-muted">Locked</span>
+                  <span class="text-muted">Paid</span>
                 {% else %}
                 <form id="entry-form-{{ entry.pk }}" method="post">
                     {% csrf_token %}
