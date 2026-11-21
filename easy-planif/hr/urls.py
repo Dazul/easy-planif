@@ -35,6 +35,11 @@ urlpatterns = [
         name='payroll_summary',
     ),
     path(
+        'hr/replacements/',
+        views.ReplacementRequestListView.as_view(),
+        name='replacement_requests',
+    ),
+    path(
         'hr/my-payroll/',
         views.EmployeePayrollView.as_view(),
         name='employee_payroll',
