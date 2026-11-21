@@ -96,4 +96,23 @@ a {
 .booking-entry {
   display: inline-block;
   padding: 0px 4px;
+  margin-bottom: 2px;
+  border-radius: 3px;
+}
+
+/* Month-view day cells: keep entries stacked inside the day box.
+   The list scrolls when there are more bookings than fit. */
+.calendar td {
+  vertical-align: top;
+}
+
+.calendar ul {
+  box-sizing: border-box;
+  max-height: 84px;
+  overflow-y: auto;
+  margin-bottom: 0;
+}
+
+.calendar li {
+  overflow-wrap: break-word;
 }
