@@ -123,6 +123,7 @@ class WorkEntry(models.Model):
         status: Statut de validation de l'entrée de travail.
         notes: Notes ou informations complémentaires associées à l'entrée.
         approved_by: Utilisateur ayant approuvé l'entrée de travail.
+        is_paid: Status d'ayant été payé ou non.
     """
 
     class Status(models.TextChoices):
