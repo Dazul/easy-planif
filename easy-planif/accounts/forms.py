@@ -5,6 +5,8 @@ from django.contrib.auth.forms import (
 )
 from django import forms
 from django.db import transaction
+from django.db import IntegrityError
+from django.core.exceptions import ValidationError
 
 from hr.models import Employee
 from .models import CustomUser
@@ -73,14 +75,27 @@ class UserEmployeeCreationForm(UserCreationForm):
 
     @transaction.atomic
     def save(self, commit=True):
-        user = super().save(commit=commit)
-        if commit:
-            Employee.objects.create(
-                user=user,
-                employee_number=self.cleaned_data["employee_number"],
-                hourly_rate=self.cleaned_data["hourly_rate"],
-                hired_on=self.cleaned_data["hired_on"],
-                left_on=self.cleaned_data["left_on"],
-                is_active=self.cleaned_data["is_active"],
+        if Employee.objects.filter(
+            employee_number=self.cleaned_data["employee_number"]
+        ).exists():
+            raise ValidationError(
+                "An employee with this number already exists."
             )
+
+        user = super().save(commit=False)
+        if commit:
+            user.save()
+            try:
+                Employee.objects.create(
+                    user=user,
+                    employee_number=self.cleaned_data["employee_number"],
+                    hourly_rate=self.cleaned_data["hourly_rate"],
+                    hired_on=self.cleaned_data["hired_on"],
+                    left_on=self.cleaned_data["left_on"],
+                    is_active=self.cleaned_data["is_active"],
+                )
+            except IntegrityError as error:
+                raise ValidationError(
+                    "The user or employee could not be created."
+                ) from error
         return user

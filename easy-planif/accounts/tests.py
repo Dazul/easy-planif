@@ -87,3 +87,67 @@ class UserEmployeeCreationViewTest(TestCase):
         response = self.client.post("/users/", {})
 
         self.assertEqual(response.status_code, 403)
+
+    def test_duplicate_employee_number_returns_form_error(self):
+        existing_user = CustomUser.objects.create_user(
+            username="existing-user",
+            password="test-password",
+        )
+        Employee.objects.create(
+            user=existing_user,
+            employee_number="DUP001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/users/",
+            {
+                "username": "duplicate-employee",
+                "email": "duplicate@example.com",
+                "password1": "Strong-password-123",
+                "password2": "Strong-password-123",
+                "employee_number": "DUP001",
+                "hourly_rate": "25.50",
+                "hired_on": "2026-01-05",
+                "left_on": "",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "An employee with this number already exists.",
+            status_code=400,
+        )
+        self.assertFalse(
+            CustomUser.objects.filter(username="duplicate-employee").exists()
+        )
+
+    def test_invalid_employee_dates_return_form_error(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/users/",
+            {
+                "username": "invalid-dates",
+                "email": "invalid@example.com",
+                "password1": "Strong-password-123",
+                "password2": "Strong-password-123",
+                "employee_number": "DATE001",
+                "hourly_rate": "25.50",
+                "hired_on": "2026-03-01",
+                "left_on": "2026-02-01",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "The end date cannot be before the hire date.",
+            status_code=400,
+        )
+        self.assertFalse(
+            CustomUser.objects.filter(username="invalid-dates").exists()
+        )

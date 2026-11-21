@@ -2,7 +2,7 @@ from django.views import generic
 from django.utils.safestring import mark_safe
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect
 from .forms import UserEmployeeCreationForm
 from .models import CustomUser
@@ -32,9 +32,17 @@ class UsersView(generic.ListView):
         return context
 
     def post(self, request, *args, **kwargs):
+        self.object_list = self.get_queryset()
         form = UserEmployeeCreationForm(request.POST)
         if form.is_valid():
-            form.save()
-            return redirect("users")
-        context = self.get_context_data(user_creation_form=form)
+            try:
+                form.save()
+            except ValidationError as error:
+                form.add_error(None, error)
+            else:
+                return redirect("users")
+        context = self.get_context_data(
+            object_list=self.get_queryset(),
+            user_creation_form=form,
+        )
         return self.render_to_response(context, status=400)
