@@ -17,9 +17,20 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from django.views.generic.base import TemplateView
+from accounts import views as accounts_views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+    path(
+        "accounts/password_change/",
+        accounts_views.RequiredPasswordChangeView.as_view(),
+        name="password_change",
+    ),
+    path(
+        "accounts/password_change/done/",
+        accounts_views.RequiredPasswordChangeDoneView.as_view(),
+        name="password_change_done",
+    ),
     #path('accounts/', include('accounts.urls')),
     path("accounts/", include('django.contrib.auth.urls')),
     path("", TemplateView.as_view(template_name="home.html"), name="home"),

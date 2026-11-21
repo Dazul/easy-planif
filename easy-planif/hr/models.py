@@ -19,7 +19,6 @@ class Employee(models.Model):
         user: Utilisateur Django associé à l'employé.
         employee_number: Identifiant unique de l'employé.
         hourly_rate: Taux horaire de l'employé.
-        monthly_salary: Salaire mensuel éventuel de l'employé.
         hired_on: Date d'entrée de l'employé.
         left_on: Date de départ de l'employé.
         is_active: Indique si l'employé est actuellement actif.
@@ -37,13 +36,6 @@ class Employee(models.Model):
     hourly_rate = models.DecimalField(
         max_digits=10,
         decimal_places=2,
-        validators=[MinValueValidator(Decimal(0))],
-    )
-    monthly_salary = models.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        blank=True,
-        null=True,
         validators=[MinValueValidator(Decimal(0))],
     )
     hired_on = models.DateField()
@@ -131,6 +123,7 @@ class WorkEntry(models.Model):
         status: Statut de validation de l'entrée de travail.
         notes: Notes ou informations complémentaires associées à l'entrée.
         approved_by: Utilisateur ayant approuvé l'entrée de travail.
+        is_paid: Status d'ayant été payé ou non.
     """
 
     class Status(models.TextChoices):
@@ -150,7 +143,7 @@ class WorkEntry(models.Model):
     work_date = models.DateField()
     start_time = models.TimeField()
     end_time = models.TimeField()
-    break_minutes = models.PositiveIntegerField(default=0)
+    break_minutes = models.PositiveIntegerField(default=30)
     status = models.CharField(
         max_length=10,
         choices=Status.choices,
@@ -164,6 +157,7 @@ class WorkEntry(models.Model):
         null=True,
         related_name="approved_work_entries",
     )
+    is_paid = models.BooleanField(default=False)
 
     class Meta:
         """
@@ -272,6 +266,26 @@ class WorkEntry(models.Model):
             Decimal("0.01")
         )
 
+    @property
+    def due_amount(self):
+        return (self.duration_hours * self.employee.hourly_rate).quantize(
+            Decimal("0.01")
+        )
+
+    def approve(self, approved_by):
+        if self.is_paid:
+            raise ValidationError("A paid work entry cannot be approved.")
+        self.status = self.Status.APPROVED
+        self.approved_by = approved_by
+
+    def reopen_for_modification(self):
+        if self.is_paid:
+            raise ValidationError("A paid work entry cannot be modified.")
+        if self.status != self.Status.APPROVED:
+            raise ValidationError("Only approved work entries can be modified.")
+        self.status = self.Status.DRAFT
+        self.approved_by = None
+
     def __str__(self):
         """
         Retourne une représentation lisible de l'entrée de travail.
@@ -283,3 +297,123 @@ class WorkEntry(models.Model):
             "EMP001 - 2026-10-08"
         """
         return f"{self.employee} - {self.work_date}"
+
+
+class PayrollPayment(models.Model):
+    """
+    Représente un versement effectué à un employé pour un mois donné.
+
+    Le versement reste en attente tant qu'un administrateur ne l'a pas validé.
+
+    Attributes:
+        employee: Employé concerné par le versement.
+        period_month: Premier jour du mois de paie concerné.
+        payment_date: Date à laquelle le versement a été effectué.
+        amount: Montant du versement.
+        notes: Notes ou informations complémentaires.
+        approved_by: Administrateur ayant validé le versement.
+        approved_at: Date et heure de validation du versement.
+    """
+
+    employee = models.ForeignKey(
+        Employee,
+        on_delete=models.CASCADE,
+        related_name="payroll_payments",
+    )
+    period_month = models.DateField()
+    payment_date = models.DateField()
+    amount = models.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        validators=[MinValueValidator(Decimal(0))],
+    )
+    notes = models.TextField(blank=True)
+    approved_by = models.ForeignKey(
+        CustomUser,
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="approved_payroll_payments",
+    )
+    approved_at = models.DateTimeField(blank=True, null=True)
+    work_entry = models.OneToOneField(
+        "WorkEntry",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="payroll_payment",
+    )
+
+    class Meta:
+        """
+        Configuration du modèle PayrollPayment.
+
+        Les versements sont triés du plus récent au plus ancien.
+        """
+
+        ordering = ["-payment_date", "-id"]
+
+    def clean(self):
+        """
+        Effectue les validations métier du versement.
+
+        Vérifie que la période de paie commence bien le premier jour du mois.
+
+        Raises:
+            ValidationError: Si la période ne commence pas le premier jour du mois.
+        """
+        super().clean()
+        if self.period_month.day != 1:
+            raise ValidationError(
+                {
+                    "period_month": (
+                        "The payroll period must start on the first day "
+                        "of a month."
+                    )
+                }
+            )
+        if self.work_entry is not None:
+            if self.work_entry.employee_id != self.employee_id:
+                raise ValidationError(
+                    "The work entry must belong to the payment employee."
+                )
+            if (
+                self.work_entry.work_date.year != self.period_month.year
+                or self.work_entry.work_date.month != self.period_month.month
+            ):
+                raise ValidationError(
+                    "The work entry must belong to the payroll period."
+                )
+
+    def save(self, *args, **kwargs):
+        """
+        Valide le versement avant de l'enregistrer en base de données.
+
+        Args:
+            *args: Arguments positionnels transmis à la méthode `save()`.
+            **kwargs: Arguments nommés transmis à la méthode `save()`.
+        """
+        self.full_clean()
+        super().save(*args, **kwargs)
+
+    @property
+    def is_approved(self):
+        """
+        Indique si le versement a été validé par un administrateur.
+
+        Returns:
+            bool: True si un administrateur a validé le versement, sinon False.
+        """
+        return self.approved_by_id is not None
+
+    def __str__(self):
+        """
+        Retourne une représentation lisible du versement.
+
+        Returns:
+            str: L'employé, la date et le montant du versement.
+
+        Example:
+            "PAY001 - employee - 2026-10-15 - 250.00"
+        """
+        return f"{self.employee} - {self.payment_date} - {self.amount}"

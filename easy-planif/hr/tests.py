@@ -1,12 +1,15 @@
 from datetime import date, time
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
 from django.test import TestCase
+from django.contrib import admin
 
 from accounts.models import CustomUser
 
-from .models import Employee, WorkEntry
+from .admin import EmployeeAdmin, PayrollPaymentAdmin, WorkEntryAdmin
+from .models import Employee, PayrollPayment, WorkEntry
 
 
 class EmployeeModelTest(TestCase):
@@ -33,7 +36,6 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(employee.hourly_rate, 25.50)
         self.assertTrue(employee.is_active)
         self.assertIsNone(employee.left_on)
-        self.assertIsNone(employee.monthly_salary)
 
     def test_employee_str(self):
         employee = self.create_employee()
@@ -73,6 +75,681 @@ class EmployeeModelTest(TestCase):
         self.assertEqual(Employee.objects.count(), 1)
 
 
+class EmployeeListViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="manager",
+            password="password",
+            is_staff=True,
+        )
+        self.employee_user = CustomUser.objects.create_user(
+            username="employee",
+            password="password",
+        )
+        Employee.objects.create(
+            user=self.employee_user,
+            employee_number="EMP001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+            left_on=date(2026, 3, 1),
+            is_active=False,
+        )
+
+    def test_staff_can_view_employees(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/employees/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "EMP001")
+        self.assertContains(response, "25.50")
+        self.assertContains(response, "Inactive")
+
+    def test_non_staff_cannot_view_employees(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/employees/")
+
+        self.assertEqual(response.status_code, 403)
+
+
+class HRAdminRegistrationTest(TestCase):
+    def test_hr_models_are_registered_with_expected_admin_classes(self):
+        self.assertIsInstance(admin.site._registry[Employee], EmployeeAdmin)
+        self.assertIsInstance(admin.site._registry[WorkEntry], WorkEntryAdmin)
+        self.assertIsInstance(
+            admin.site._registry[PayrollPayment],
+            PayrollPaymentAdmin,
+        )
+
+
+class WorkCalendarViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="calendar-manager",
+            password="password",
+            is_staff=True,
+        )
+        self.employee_user = CustomUser.objects.create_user(
+            username="calendar-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="CAL001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+
+    def test_staff_can_view_work_calendar(self):
+        self.entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "October 2026")
+        self.assertContains(response, "calendar-employee")
+        self.assertContains(response, "08:00")
+        self.assertContains(response, "17:00")
+        self.assertContains(response, "calendar-day-past")
+
+    def test_non_staff_cannot_view_work_calendar(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/time-entries/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_calendar_marks_future_days(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2099&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "calendar-day-future")
+
+    def test_calendar_includes_entries_from_adjacent_visible_dates(self):
+        entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 31),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        december_entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 12, 1),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/?year=2026&month=11")
+
+        self.assertEqual(response.status_code, 200)
+        visible_entries = [
+            current_entry
+            for week in response.context["calendar_weeks"]
+            for day in week
+            for current_entry in day["entries"]
+        ]
+        self.assertIn(entry, visible_entries)
+        self.assertIn(december_entry, visible_entries)
+
+
+class WorkDayViewTest(TestCase):
+    def setUp(self):
+        self.staff = CustomUser.objects.create_user(
+            username="day-manager",
+            password="password",
+            is_staff=True,
+        )
+        employee_user = CustomUser.objects.create_user(
+            username="day-employee",
+            password="password",
+        )
+        employee = Employee.objects.create(
+            user=employee_user,
+            employee_number="DAY001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        self.entry = WorkEntry.objects.create(
+            employee=employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+            notes="Client project",
+        )
+
+    def test_staff_can_view_day_details(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.get("/hr/time-entries/2026-10-08/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Client project")
+        self.assertContains(response, "8.50")
+
+    def test_staff_can_approve_entry(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {"entry_id": self.entry.pk},
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
+        self.assertEqual(self.entry.approved_by, self.staff)
+
+    def test_staff_cannot_edit_paid_entry(self):
+        self.entry.is_paid = True
+        self.entry.save(update_fields=["is_paid"])
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "start_time": "09:00",
+                "end_time": "18:00",
+                "break_minutes": "45",
+                "notes": "Should be rejected",
+                "action": "save",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.notes, "Client project")
+
+    def test_staff_can_edit_entry_when_approving(self):
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "start_time": "09:00",
+                "end_time": "18:00",
+                "break_minutes": "45",
+                "notes": "Updated project",
+                "action": "approve",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.start_time, time(9, 0))
+        self.assertEqual(self.entry.break_minutes, 45)
+        self.assertEqual(self.entry.notes, "Updated project")
+        self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
+
+    def test_approved_entry_must_be_modified_before_editing(self):
+        self.entry.status = WorkEntry.Status.APPROVED
+        self.entry.approved_by = self.staff
+        self.entry.save(update_fields=["status", "approved_by"])
+        self.client.force_login(self.staff)
+
+        modify_response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "action": "modify",
+            },
+        )
+        self.assertRedirects(
+            modify_response,
+            "/hr/time-entries/2026-10-08/",
+        )
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, WorkEntry.Status.DRAFT)
+        self.assertIsNone(self.entry.approved_by)
+
+    def test_staff_can_add_entry_to_day(self):
+        self.client.force_login(self.staff)
+        employee = self.entry.employee
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "employee": employee.pk,
+                "start_time": "18:00",
+                "end_time": "20:00",
+                "notes": "Evening shift",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/time-entries/2026-10-08/")
+        entry = WorkEntry.objects.get(
+            employee=employee,
+            start_time=time(18, 0),
+        )
+        self.assertEqual(entry.break_minutes, 30)
+        self.assertEqual(entry.work_date, date(2026, 10, 8))
+
+
+class EmployeeWorkCalendarViewTest(TestCase):
+    def setUp(self):
+        self.employee_user = CustomUser.objects.create_user(
+            username="self-calendar",
+            password="password",
+        )
+        self.other_user = CustomUser.objects.create_user(
+            username="other-calendar",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="SELF001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        other_employee = Employee.objects.create(
+            user=self.other_user,
+            employee_number="OTHER001",
+            hourly_rate="30.00",
+            hired_on=date(2026, 1, 5),
+        )
+        self.entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=30,
+        )
+        WorkEntry.objects.create(
+            employee=other_employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(9, 0),
+            end_time=time(18, 0),
+        )
+
+    def test_employee_only_sees_own_entries(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get(
+            "/hr/my-time-entries/?year=2026&month=10"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "self-calendar")
+        self.assertNotContains(response, "other-calendar")
+
+    def test_employee_day_view_is_read_only(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-time-entries/2026-10-08/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "08:00")
+        self.assertNotContains(response, "Approve")
+
+
+class PayrollPaymentModelTest(TestCase):
+    def setUp(self):
+        self.user = CustomUser.objects.create_user(
+            username="payroll-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.user,
+            employee_number="PAY001",
+            hourly_rate="25.50",
+            hired_on=date(2026, 1, 5),
+        )
+        self.admin = CustomUser.objects.create_user(
+            username="payroll-admin",
+            password="password",
+            is_staff=True,
+        )
+
+    def test_payment_is_pending_until_approved(self):
+        payment = PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="250.00",
+        )
+
+        self.assertFalse(payment.is_approved)
+        payment.approved_by = self.admin
+        payment.save()
+        self.assertTrue(payment.is_approved)
+
+    def test_period_must_start_on_first_day(self):
+        payment = PayrollPayment(
+            employee=self.employee,
+            period_month=date(2026, 10, 2),
+            payment_date=date(2026, 10, 15),
+            amount="250.00",
+        )
+
+        with self.assertRaises(ValidationError):
+            payment.save()
+
+
+class PayrollSummaryViewTest(TestCase):
+    def setUp(self):
+        self.admin = CustomUser.objects.create_user(
+            username="summary-admin",
+            password="password",
+            is_staff=True,
+        )
+        employee_user = CustomUser.objects.create_user(
+            username="summary-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=employee_user,
+            employee_number="SUM001",
+            hourly_rate="25.00",
+            hired_on=date(2026, 1, 5),
+        )
+        self.entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 31),
+            amount="50.00",
+            approved_by=self.admin,
+        )
+
+    def test_staff_can_view_monthly_payroll_summary(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "summary-employee")
+        self.assertContains(response, "8.00")
+        self.assertContains(response, "200.00")
+        self.assertContains(response, "50.00")
+        self.assertContains(response, "150.00")
+
+    def test_staff_can_navigate_payroll_months(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "year=2025&month=12")
+        self.assertContains(response, "year=2026&month=2")
+
+    def test_staff_can_filter_payroll_by_employee_and_see_totals(self):
+        other_user = CustomUser.objects.create_user(
+            username="other-summary-employee",
+            password="test-password",
+        )
+        other_employee = Employee.objects.create(
+            user=other_user,
+            employee_number="SUM002",
+            hourly_rate="40.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=other_employee,
+            work_date=date(2026, 10, 9),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get(
+            f"/hr/payroll/?year=2026&month=10&employee_id={self.employee.pk}"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Already paid")
+        self.assertContains(response, "Remaining to pay")
+        self.assertContains(response, "150.00")
+        self.assertContains(response, "200.00")
+        row_employees = {
+            row["employee"].pk
+            for row in response.context["payroll_rows"]
+        }
+        self.assertEqual(row_employees, {self.employee.pk})
+
+    def test_payments_are_counted_even_on_non_worked_days(self):
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 20),
+            amount="100.00",
+            approved_by=self.admin,
+        )
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "150.00")
+
+    def test_non_staff_cannot_view_payroll_summary(self):
+        self.client.force_login(self.employee.user)
+
+        response = self.client.get("/hr/payroll/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def test_staff_can_confirm_payment_from_summary(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
+                "payment_date": "2026-10-08",
+                "amount": "200.00",
+                "notes": "October payment",
+            },
+        )
+
+        self.assertRedirects(response, "/hr/payroll/?year=2026&month=10")
+        payment = PayrollPayment.objects.get(
+            employee=self.employee,
+            payment_date=date(2026, 10, 8),
+            notes="October payment",
+        )
+        self.assertEqual(payment.amount, 200)
+        self.assertEqual(payment.approved_by, self.admin)
+        self.assertIsNotNone(payment.approved_at)
+        self.entry.refresh_from_db()
+        self.assertTrue(self.entry.is_paid)
+        self.assertEqual(payment.work_entry, self.entry)
+
+    def test_payment_below_due_is_rejected_with_visible_error(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
+                "payment_date": "2026-10-08",
+                "amount": "199.99",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Payment amount cannot be below the due amount",
+            status_code=400,
+        )
+        self.assertFalse(
+            PayrollPayment.objects.filter(work_entry=self.entry).exists()
+        )
+
+    def test_payment_above_due_is_allowed(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
+                "payment_date": "2026-10-08",
+                "amount": "250.00",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            "/hr/payroll/?year=2026&month=10",
+        )
+        payment = PayrollPayment.objects.get(work_entry=self.entry)
+        self.assertEqual(payment.amount, Decimal("250.00"))
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+        row = response.context["payroll_rows"][0]
+        self.assertEqual(row["paid"], Decimal("250.00"))
+        self.assertEqual(response.context["payroll_total_paid"], Decimal("300.00"))
+        self.assertEqual(response.context["payroll_remaining"], Decimal("0.00"))
+
+    def test_payroll_does_not_allow_a_payment_date_field(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="payment_date"')
+
+    def test_staff_can_pay_two_entries_in_the_same_month(self):
+        second_entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 9),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        self.client.force_login(self.admin)
+
+        for entry in (self.entry, second_entry):
+            response = self.client.post(
+                "/hr/payroll/",
+                {
+                    "employee_id": self.employee.pk,
+                    "entry_id": entry.pk,
+                    "payment_date": "2026-10-09",
+                    "amount": "200.00",
+                },
+            )
+            self.assertRedirects(
+                response,
+                "/hr/payroll/?year=2026&month=10",
+            )
+
+        self.entry.refresh_from_db()
+        second_entry.refresh_from_db()
+        self.assertTrue(self.entry.is_paid)
+        self.assertTrue(second_entry.is_paid)
+
+
+class EmployeePayrollViewTest(TestCase):
+    def setUp(self):
+        self.employee_user = CustomUser.objects.create_user(
+            username="my-payroll-employee",
+            password="password",
+        )
+        self.other_user = CustomUser.objects.create_user(
+            username="other-payroll-employee",
+            password="password",
+        )
+        self.employee = Employee.objects.create(
+            user=self.employee_user,
+            employee_number="MYPAY001",
+            hourly_rate="25.00",
+            hired_on=date(2026, 1, 5),
+        )
+        other_employee = Employee.objects.create(
+            user=self.other_user,
+            employee_number="MYPAY002",
+            hourly_rate="50.00",
+            hired_on=date(2026, 1, 5),
+        )
+        WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        PayrollPayment.objects.create(
+            employee=self.employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="50.00",
+            approved_by=self.other_user,
+        )
+        PayrollPayment.objects.create(
+            employee=other_employee,
+            period_month=date(2026, 10, 1),
+            payment_date=date(2026, 10, 15),
+            amount="999.00",
+            approved_by=self.other_user,
+        )
+
+    def test_employee_sees_own_payroll(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "25.00")
+        self.assertContains(response, "50.00")
+        self.assertContains(response, "200.00")
+        self.assertContains(response, "150.00")
+        self.assertNotContains(response, "999.00")
+
+    def test_employee_can_navigate_payroll_months(self):
+        self.client.force_login(self.employee_user)
+
+        response = self.client.get("/hr/my-payroll/?year=2026&month=12")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "year=2026&month=11")
+        self.assertContains(response, "year=2027&month=1")
+
+    def test_user_without_employee_profile_sees_friendly_payroll_message(self):
+        regular_user = CustomUser.objects.create_user(
+            username="regular-payroll-user",
+            password="test-password",
+        )
+        self.client.force_login(regular_user)
+
+        response = self.client.get("/hr/my-payroll/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(
+            response,
+            "No employee profile is associated with your account.",
+        )
+
+
 class WorkEntryModelTest(TestCase):
     def setUp(self):
         self.user = CustomUser.objects.create_superuser(
@@ -103,6 +780,16 @@ class WorkEntryModelTest(TestCase):
         self.assertEqual(entry.status, WorkEntry.Status.DRAFT)
         self.assertEqual(entry.notes, "")
         self.assertIsNone(entry.approved_by)
+
+    def test_break_defaults_to_thirty_minutes(self):
+        entry = WorkEntry(
+            employee=self.employee,
+            work_date=date(2026, 10, 8),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+        )
+
+        self.assertEqual(entry.break_minutes, 30)
 
     def test_work_entry_str(self):
         entry = self.create_entry()

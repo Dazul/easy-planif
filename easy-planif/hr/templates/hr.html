@@ -2,7 +2,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Required meta tags -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
@@ -10,17 +9,34 @@
   {% load django_bootstrap5 %}
   {% bootstrap_css %}
   {% bootstrap_javascript %}
+  <style>
+    .calendar-day-past { background-color: #ffffff; }
+    .calendar-day-today { background-color: #cfe2ff; }
+    .calendar-day-future { background-color: #e7f1ff; }
+  </style>
 </head>
 <body>
   <div class="container">
-  {% include "menu.html" %}
-  {% if user.is_authenticated %}
-    <h1>Working Time Management, you are authenticated.</h1>
-  {% else %}
-    <h1>Working Time Management, you are not authenticated.</h1>
-  {% endif %}
-  <div class="clearfix">
-    <p>Welcome, {{ user.username }}!</p>
+    {% include "menu.html" %}
+    {% if user.is_authenticated %}
+      {% if show_employee_list %}
+        {% include "hr/partials/employee_list.html" %}
+      {% elif employee_payroll_profile_missing %}
+        {% include "hr/partials/employee_payroll_missing.html" %}
+      {% elif show_employee_payroll %}
+        {% include "hr/partials/employee_payroll.html" %}
+      {% elif show_payroll_summary %}
+        {% include "hr/partials/payroll_summary.html" %}
+      {% elif show_work_day %}
+        {% include "hr/partials/work_day.html" %}
+      {% elif show_work_calendar %}
+        {% include "hr/partials/work_calendar.html" %}
+      {% else %}
+        <h1>Working Time Management, you are authenticated.</h1>
+      {% endif %}
+    {% else %}
+      <h1>Working Time Management, you are not authenticated.</h1>
+    {% endif %}
   </div>
 </body>
 </html>

@@ -1,0 +1,85 @@
+<div class="d-flex justify-content-between align-items-center my-4">
+  <a class="btn btn-outline-primary"
+     href="?year={{ payroll_previous.0 }}&month={{ payroll_previous.1 }}{% if payroll_selected_employee %}&employee_id={{ payroll_selected_employee.pk }}{% endif %}">Previous</a>
+  <h1>Payroll - {{ payroll_month|date:"F Y" }}</h1>
+  <a class="btn btn-outline-primary"
+     href="?year={{ payroll_next.0 }}&month={{ payroll_next.1 }}{% if payroll_selected_employee %}&employee_id={{ payroll_selected_employee.pk }}{% endif %}">Next</a>
+</div>
+{% if payroll_payment_error %}
+  <div class="alert alert-danger" role="alert">{{ payroll_payment_error }}</div>
+{% endif %}
+<form method="get" class="row g-2 align-items-end mb-3">
+  <input type="hidden" name="year" value="{{ payroll_month|date:'Y' }}">
+  <input type="hidden" name="month" value="{{ payroll_month|date:'n' }}">
+  <div class="col-auto">
+    <label class="form-label" for="payroll-employee">Employee</label>
+    <select id="payroll-employee" name="employee_id" class="form-select">
+      <option value="">All employees</option>
+      {% for employee in payroll_employees %}
+        <option value="{{ employee.pk }}" {% if payroll_selected_employee.pk == employee.pk %}selected{% endif %}>
+          {{ employee.user }} ({{ employee.employee_number }})
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+  <div class="col-auto"><button type="submit" class="btn btn-primary">Filter</button></div>
+</form>
+<div class="row mb-3">
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted">Already paid</div>
+    <strong class="text-success fs-4">{{ payroll_total_paid }}</strong>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted">Remaining to pay</div>
+    <strong class="text-danger fs-4">{{ payroll_remaining }}</strong>
+  </div></div></div>
+  <div class="col-md-4"><div class="card"><div class="card-body">
+    <div class="text-muted">Total due</div>
+    <strong class="fs-4">{{ payroll_total_due }}</strong>
+  </div></div></div>
+</div>
+<table class="table table-striped">
+  <thead>
+    <tr><th>Date</th><th>Employee</th><th>Worked hours</th><th class="text-danger">Due</th><th class="text-success">Paid</th><th>Action</th></tr>
+  </thead>
+  <tbody>
+    {% for row in payroll_rows %}
+      <tr>
+        <td>{{ row.date }}</td>
+        <td>{{ row.employee.user }}</td>
+        <td>{{ row.hours }}</td>
+        <td class="text-danger">{{ row.due }}</td>
+        <td class="text-success">{{ row.paid }}</td>
+        <td>
+          {% if row.entry.is_paid %}
+            <span class="text-success">Paid</span>
+          {% else %}
+            <form method="post" class="d-flex gap-1">
+              {% csrf_token %}
+              <input type="hidden" name="employee_id" value="{{ row.employee.pk }}">
+              <input type="hidden" name="entry_id" value="{{ row.entry.pk }}">
+              {% if payroll_selected_employee %}
+                <input type="hidden" name="filter_employee_id" value="{{ payroll_selected_employee.pk }}">
+              {% endif %}
+              <input type="number" name="amount" value="{{ row.due|floatformat:2 }}"
+                     min="{{ row.due }}" step="0.01" class="form-control form-control-sm" required>
+              <button class="btn btn-sm btn-success" type="submit">Confirm</button>
+            </form>
+          {% endif %}
+        </td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">No approved work entry for this month.</td></tr>
+    {% endfor %}
+  </tbody>
+  <tfoot>
+    <tr class="fw-bold">
+      <td colspan="2">Total</td><td>{{ payroll_total_hours }}</td>
+      <td class="text-danger">{{ payroll_total_due }}</td>
+      <td class="text-success">{{ payroll_total_paid }}</td><td></td>
+    </tr>
+    <tr class="fw-bold">
+      <td colspan="5">Balance</td><td>{{ payroll_balance }}</td>
+    </tr>
+  </tfoot>
+</table>

@@ -1,0 +1,27 @@
+<h1 class="my-4">Employees</h1>
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Employee</th>
+      <th>Employee number</th>
+      <th>Hourly rate</th>
+      <th>Hired on</th>
+      <th>Left on</th>
+      <th>Status</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for employee in employees %}
+      <tr>
+        <td>{{ employee.user }}</td>
+        <td>{{ employee.employee_number }}</td>
+        <td>{{ employee.hourly_rate }}</td>
+        <td>{{ employee.hired_on }}</td>
+        <td>{{ employee.left_on|default:"-" }}</td>
+        <td>{{ employee.is_active|yesno:"Active,Inactive" }}</td>
+      </tr>
+    {% empty %}
+      <tr><td colspan="6">No employees found.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>
