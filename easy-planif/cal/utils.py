@@ -233,17 +233,19 @@ class BookingsCalendar(HTMLCalendar):
         bookings_per_day = bookings.filter(date__day=day)
         d = ''
         for booking in bookings_per_day:
-            # color code per booking type (issue #36)
-            color = ''
+            # color code per booking type as entry background (issue #36)
             if booking.booking_type and booking.booking_type.color:
                 color = booking.booking_type.color
+                entry_style = f'background-color: {color};'
+            else:
+                entry_style = 'background-color: #eeeeee;'
             rep = ''
             if booking.date_report:
                 rep = f' (report: {booking.date_report})'
             d += (
                 f'<li>'
                 f'<a class="booking-entry" href="bookings/{booking.id}" '
-                f'style="border-left: 4px solid {color or "#ccc"};">'
+                f'style="{entry_style}">'
                 f' {booking.booking_name} ({booking.hour_start} -> {booking.hour_end}){rep}'
                 f'</a></li>'
             )

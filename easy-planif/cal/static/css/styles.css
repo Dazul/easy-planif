@@ -98,6 +98,7 @@ a {
   padding: 0px 4px;
   margin-bottom: 2px;
   border-radius: 3px;
+  color: #000;
 }
 
 /* Month-view day cells: keep entries stacked inside the day box.

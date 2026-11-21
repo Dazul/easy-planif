@@ -562,8 +562,8 @@ class BookingsViewTest(TestCase):
         response = self.client.get(self.url(month="2019-10"))
         self.assertEqual(response.status_code, 200)
         self.assertContains(response, "Class of 2019")
-        # color code from the booking type is rendered as a left border
-        self.assertContains(response, '#ff0000')
+        # color code from the booking type as the entry background
+        self.assertContains(response, 'background-color: #ff0000;')
 
     def test_booking_without_type_rendered_neutral(self):
         Booking.objects.create(
@@ -583,7 +583,8 @@ class BookingsViewTest(TestCase):
         self.client.force_login(self.viewer)
         response = self.client.get(self.url(month="2019-10"))
         self.assertContains(response, "No type party")
-        self.assertContains(response, "#ccc")
+        # untyped bookings get a neutral grey background
+        self.assertContains(response, "background-color: #eeeeee;")
 
 class BookingDetailEditTest(TestCase):
     def setUp(self):
