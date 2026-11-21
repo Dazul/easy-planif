@@ -256,3 +256,20 @@ def edit_booking(request, pk):
     else:
         form = AddBookingForm(instance=booking)
     return render(request, "cal/booking_edit.html", {"form": form})
+
+class BookingDayView(PermissionRequiredMixin, generic.ListView):
+    model = Booking
+    template_name = 'cal/booking_day.html'
+    permission_required = 'cal.bookings_view'
+    raise_exception = True
+    context_object_name = 'bookings_list'
+
+    def get_queryset(self):
+        day = self.kwargs['day']
+        qs = Booking.objects.filter(date=day).order_by('hour_start')
+        return qs
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context['day'] = self.kwargs['day']
+        return context

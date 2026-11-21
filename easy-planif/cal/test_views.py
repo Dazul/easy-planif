@@ -681,3 +681,87 @@ class BookingDetailEditTest(TestCase):
             reverse("cal:booking_edit", args=[self.booking.id])
         )
         self.assertEqual(response.status_code, 403)
+
+class BookingDayViewTest(TestCase):
+    def setUp(self):
+        self.viewer = CustomUser.objects.create_user(username="viewer", password="secret")
+        view_perm = Permission.objects.get(codename="bookings_view")
+        self.viewer.user_permissions.add(view_perm)
+        self.bt = BookingType.objects.create(booking_type="School", color="#ff0000")
+        # two bookings on the same day, one on another day
+        self.morning = Booking.objects.create(
+            booking_name="Morning group",
+            booking_type=self.bt,
+            date=date(2019, 10, 5),
+            hour_start=time(9, 0),
+            hour_end=time(12, 0),
+            group_leader_name="Boby",
+            group_leader_address="home",
+            group_leader_email="boby@home.com",
+            nbr_adult=10, nbr_child=0, price_adult=10, price_child=0,
+            price_total=100,
+        )
+        self.afternoon = Booking.objects.create(
+            booking_name="Afternoon group",
+            date=date(2019, 10, 5),
+            hour_start=time(14, 0),
+            hour_end=time(18, 0),
+            group_leader_name="Ann",
+            group_leader_address="home",
+            group_leader_email="ann@home.com",
+            nbr_adult=5, nbr_child=2, price_adult=10, price_child=10,
+            price_total=70,
+        )
+        Booking.objects.create(
+            booking_name="Other day group",
+            date=date(2019, 10, 6),
+            hour_start=time(9, 0),
+            hour_end=time(12, 0),
+            group_leader_name="Max",
+            group_leader_address="home",
+            group_leader_email="max@home.com",
+            nbr_adult=1, nbr_child=0, price_adult=10, price_child=0,
+            price_total=10,
+        )
+        self.client.force_login(self.viewer)
+
+    def test_month_view_links_day_to_day_view(self):
+        response = self.client.get(
+            reverse("cal:bookings"), {"month": "2019-10"}
+        )
+        self.assertContains(response, "bookings/day/2019-10-05")
+
+    def test_day_view_lists_only_that_day_sorted_by_hour(self):
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertContains(response, "Morning group")
+        self.assertContains(response, "Afternoon group")
+        self.assertNotContains(response, "Other day group")
+        # sorted by start hour: morning before afternoon
+        self.assertLess(
+            response.content.decode().index("Morning group"),
+            response.content.decode().index("Afternoon group"),
+        )
+
+    def test_day_view_links_to_details(self):
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertContains(
+            response,
+            reverse("cal:booking_detail", args=[self.morning.id]),
+        )
+        self.assertContains(
+            response,
+            reverse("cal:booking_detail", args=[self.afternoon.id]),
+        )
+
+    def test_day_view_requires_permission(self):
+        plain = CustomUser.objects.create_user(username="plain", password="secret")
+        self.client.force_login(plain)
+        response = self.client.get(
+            reverse("cal:booking_day", args=["2019-10-05"])
+        )
+        self.assertEqual(response.status_code, 403)

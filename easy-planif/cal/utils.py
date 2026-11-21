@@ -250,7 +250,12 @@ class BookingsCalendar(HTMLCalendar):
                 f'</a></li>'
             )
         if day != 0:
-            return f"<td><span class='date'>{day}</span><ul> {d} </ul></td>"
+            date_link = (
+                f"<a href='bookings/day/"
+                f"{self.year:04d}-{self.month:02d}-{day:02d}'>"
+                f"<span class='date'>{day}</span></a>"
+            )
+            return f"<td>{date_link}<ul> {d} </ul></td>"
         return '<td></td>'
 
     # formats a week as a tr
