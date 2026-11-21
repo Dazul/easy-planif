@@ -26,6 +26,7 @@ class WorkEntryAdmin(admin.ModelAdmin):
         "end_time",
         "break_minutes",
         "status",
+        "is_paid",
         "approved_by",
     )
     list_filter = ("status", "work_date")
@@ -40,6 +41,7 @@ class PayrollPaymentAdmin(admin.ModelAdmin):
         "period_month",
         "payment_date",
         "amount",
+        "work_entry",
         "approved_by",
         "approved_at",
     )

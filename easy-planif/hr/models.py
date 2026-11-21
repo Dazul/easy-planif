@@ -156,6 +156,7 @@ class WorkEntry(models.Model):
         null=True,
         related_name="approved_work_entries",
     )
+    is_paid = models.BooleanField(default=False)
 
     class Meta:
         """
@@ -314,6 +315,13 @@ class PayrollPayment(models.Model):
         related_name="approved_payroll_payments",
     )
     approved_at = models.DateTimeField(blank=True, null=True)
+    work_entry = models.OneToOneField(
+        "WorkEntry",
+        on_delete=models.PROTECT,
+        blank=True,
+        null=True,
+        related_name="payroll_payment",
+    )
 
     class Meta:
         """

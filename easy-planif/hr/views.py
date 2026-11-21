@@ -57,6 +57,14 @@ class PayrollSummaryView(View):
             Employee,
             pk=request.POST.get("employee_id"),
         )
+        entry = get_object_or_404(
+            WorkEntry,
+            pk=request.POST.get("entry_id"),
+            employee=employee,
+            status=WorkEntry.Status.APPROVED,
+        )
+        if entry.is_paid:
+            raise PermissionDenied("This work entry is already paid.")
         try:
             payment_date = date.fromisoformat(request.POST["payment_date"])
             amount = Decimal(request.POST["amount"])
@@ -64,6 +72,11 @@ class PayrollSummaryView(View):
             raise PermissionDenied("Invalid payroll payment data.")
 
         period_month = date(payment_date.year, payment_date.month, 1)
+        due = (entry.duration_hours * entry.employee.hourly_rate).quantize(
+            Decimal("0.01")
+        )
+        if amount != due:
+            raise PermissionDenied("Payment amount must equal the work entry due.")
         PayrollPayment.objects.create(
             employee=employee,
             period_month=period_month,
@@ -72,7 +85,10 @@ class PayrollSummaryView(View):
             notes=request.POST.get("notes", ""),
             approved_by=request.user,
             approved_at=now(),
+            work_entry=entry,
         )
+        entry.is_paid = True
+        entry.save(update_fields=["is_paid"])
         return redirect(
             f"{request.path}?year={period_month.year}&month={period_month.month}"
         )
@@ -90,49 +106,41 @@ class PayrollSummaryView(View):
             work_date__month=month,
             status=WorkEntry.Status.APPROVED,
         ).select_related("employee", "employee__user")
-        payments = PayrollPayment.objects.filter(
-            period_month=period_month,
-            approved_by__isnull=False,
-        ).select_related("employee", "employee__user")
-
-        rows_by_employee_date = {}
+        rows = []
         for entry in entries:
-            key = (entry.employee_id, entry.work_date)
-            row = rows_by_employee_date.setdefault(
-                key,
-                {
-                    "date": entry.work_date,
-                    "employee": entry.employee,
-                    "hours": Decimal("0.00"),
-                    "due": Decimal("0.00"),
-                    "paid": Decimal("0.00"),
-                },
-            )
-            row["hours"] += entry.duration_hours
-            row["due"] += (
+            due = (
                 entry.duration_hours * entry.employee.hourly_rate
             ).quantize(Decimal("0.01"))
-
-        payments_by_employee = {}
-        for payment in payments:
-            payments_by_employee[payment.employee_id] = (
-                payments_by_employee.get(payment.employee_id, Decimal("0.00"))
-                + payment.amount
+            rows.append(
+                {
+                    "entry": entry,
+                    "date": entry.work_date,
+                    "employee": entry.employee,
+                    "hours": entry.duration_hours,
+                    "due": due,
+                    "paid": due if entry.is_paid else Decimal("0.00"),
+                }
             )
 
-        for row in rows_by_employee_date.values():
-            row["paid"] = payments_by_employee.get(
-                row["employee"].pk,
-                Decimal("0.00"),
+        rows.sort(
+            key=lambda row: (
+                row["date"],
+                row["employee"].employee_number,
+                row["entry"].start_time,
             )
-
-        rows = sorted(
-            rows_by_employee_date.values(),
-            key=lambda row: (row["date"], row["employee"].employee_number),
         )
         total_hours = sum((row["hours"] for row in rows), Decimal("0.00"))
         total_due = sum((row["due"] for row in rows), Decimal("0.00"))
         total_paid = sum((row["paid"] for row in rows), Decimal("0.00"))
+        legacy_payments = PayrollPayment.objects.filter(
+            period_month=period_month,
+            work_entry__isnull=True,
+            approved_by__isnull=False,
+        )
+        total_paid += sum(
+            (payment.amount for payment in legacy_payments),
+            Decimal("0.00"),
+        )
 
         return render(
             request,
@@ -409,59 +417,79 @@ class WorkDayView(View):
             pk=request.POST.get("entry_id"),
             work_date=work_date,
         )
-        if (
-            request.POST.get("action", "approve") == "approve"
-            and "start_time" not in request.POST
-        ):
+        if entry.is_paid:
+            raise PermissionDenied(
+                "A paid work entry cannot be modified or approved."
+            )
+
+        action = request.POST.get("action", "approve")
+        if action == "modify":
+            if entry.status != WorkEntry.Status.APPROVED:
+                raise PermissionDenied("Only approved work entries can be modified.")
+            entry.status = WorkEntry.Status.DRAFT
+            entry.approved_by = None
+            entry.save(update_fields=["status", "approved_by"])
+            return redirect("hr:work_day", work_date=work_date)
+
+        if entry.status == WorkEntry.Status.APPROVED:
+            raise PermissionDenied(
+                "Approved work entries cannot be changed. Use Modify first."
+            )
+
+        if action == "approve":
+            if "start_time" not in request.POST:
+                entry.status = WorkEntry.Status.APPROVED
+                entry.approved_by = request.user
+                entry.save(update_fields=["status", "approved_by"])
+                return redirect("hr:work_day", work_date=work_date)
+
+            form = WorkEntryForm(request.POST, instance=entry)
+            if not form.is_valid():
+                for field in form.fields.values():
+                    field.widget.attrs["form"] = f"entry-form-{entry.pk}"
+                entries = self.get_entries_queryset(request).filter(
+                    work_date=work_date,
+                ).select_related("employee", "employee__user")
+                entry_rows = [
+                    {
+                        "entry": current_entry,
+                        "form": (
+                            form
+                            if current_entry.pk == entry.pk
+                            else self._entry_form(current_entry)
+                        ),
+                        "form_id": f"entry-form-{current_entry.pk}",
+                    }
+                    for current_entry in entries
+                ]
+                return render(
+                    request,
+                    self.template_name,
+                    {
+                        "show_work_day": True,
+                        "employee_day": self.employee_only,
+                        "work_date": work_date,
+                        "work_entries": entries,
+                        "entry_rows": entry_rows,
+                    },
+                    status=400,
+                )
+
+            entry = form.save(commit=False)
             entry.status = WorkEntry.Status.APPROVED
             entry.approved_by = request.user
             entry.save()
             return redirect("hr:work_day", work_date=work_date)
 
-        form = WorkEntryForm(request.POST, instance=entry)
-        if not form.is_valid():
-            for field in form.fields.values():
-                field.widget.attrs["form"] = f"entry-form-{entry.pk}"
-            entries = self.get_entries_queryset(request).filter(
-                work_date=work_date,
-            ).select_related("employee", "employee__user")
-            entry_rows = [
-                {
-                    "entry": current_entry,
-                    "form": (
-                        form
-                        if current_entry.pk == entry.pk
-                        else self._entry_form(current_entry)
-                    ),
-                    "form_id": f"entry-form-{current_entry.pk}",
-                }
-                for current_entry in entries
-            ]
-            return render(
-                request,
-                self.template_name,
-                {
-                    "show_work_day": True,
-                    "employee_day": self.employee_only,
-                    "work_date": work_date,
-                    "work_entries": entries,
-                    "entry_rows": entry_rows,
-                },
-                status=400,
-            )
-
-        entry = form.save(commit=False)
-        if request.POST.get("action") == "approve":
-            entry.status = WorkEntry.Status.APPROVED
-            entry.approved_by = request.user
-        entry.save()
-        return redirect("hr:work_day", work_date=work_date)
+        raise PermissionDenied("Unsupported work entry action.")
 
     @staticmethod
     def _entry_form(entry):
         form = WorkEntryForm(instance=entry)
         for field in form.fields.values():
             field.widget.attrs["form"] = f"entry-form-{entry.pk}"
+            if entry.is_paid or entry.status == WorkEntry.Status.APPROVED:
+                field.disabled = True
         return form
 
     def get_entries_queryset(self, request):

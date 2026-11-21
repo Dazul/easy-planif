@@ -141,7 +141,7 @@ class WorkCalendarViewTest(TestCase):
         )
 
     def test_staff_can_view_work_calendar(self):
-        WorkEntry.objects.create(
+        self.entry = WorkEntry.objects.create(
             employee=self.employee,
             work_date=date(2026, 10, 8),
             start_time=time(8, 0),
@@ -223,7 +223,28 @@ class WorkDayViewTest(TestCase):
         self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
         self.assertEqual(self.entry.approved_by, self.staff)
 
-    def test_staff_can_edit_and_save_entry(self):
+    def test_staff_cannot_edit_paid_entry(self):
+        self.entry.is_paid = True
+        self.entry.save(update_fields=["is_paid"])
+        self.client.force_login(self.staff)
+
+        response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "start_time": "09:00",
+                "end_time": "18:00",
+                "break_minutes": "45",
+                "notes": "Should be rejected",
+                "action": "save",
+            },
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.notes, "Client project")
+
+    def test_staff_can_edit_entry_when_approving(self):
         self.client.force_login(self.staff)
 
         response = self.client.post(
@@ -234,7 +255,7 @@ class WorkDayViewTest(TestCase):
                 "end_time": "18:00",
                 "break_minutes": "45",
                 "notes": "Updated project",
-                "action": "save",
+                "action": "approve",
             },
         )
 
@@ -243,6 +264,28 @@ class WorkDayViewTest(TestCase):
         self.assertEqual(self.entry.start_time, time(9, 0))
         self.assertEqual(self.entry.break_minutes, 45)
         self.assertEqual(self.entry.notes, "Updated project")
+        self.assertEqual(self.entry.status, WorkEntry.Status.APPROVED)
+
+    def test_approved_entry_must_be_modified_before_editing(self):
+        self.entry.status = WorkEntry.Status.APPROVED
+        self.entry.approved_by = self.staff
+        self.entry.save(update_fields=["status", "approved_by"])
+        self.client.force_login(self.staff)
+
+        modify_response = self.client.post(
+            "/hr/time-entries/2026-10-08/",
+            {
+                "entry_id": self.entry.pk,
+                "action": "modify",
+            },
+        )
+        self.assertRedirects(
+            modify_response,
+            "/hr/time-entries/2026-10-08/",
+        )
+        self.entry.refresh_from_db()
+        self.assertEqual(self.entry.status, WorkEntry.Status.DRAFT)
+        self.assertIsNone(self.entry.approved_by)
 
     def test_staff_can_add_entry_to_day(self):
         self.client.force_login(self.staff)
@@ -289,7 +332,7 @@ class EmployeeWorkCalendarViewTest(TestCase):
             hourly_rate="30.00",
             hired_on=date(2026, 1, 5),
         )
-        WorkEntry.objects.create(
+        self.entry = WorkEntry.objects.create(
             employee=self.employee,
             work_date=date(2026, 10, 8),
             start_time=time(8, 0),
@@ -384,7 +427,7 @@ class PayrollSummaryViewTest(TestCase):
             hourly_rate="25.00",
             hired_on=date(2026, 1, 5),
         )
-        WorkEntry.objects.create(
+        self.entry = WorkEntry.objects.create(
             employee=self.employee,
             work_date=date(2026, 10, 8),
             start_time=time(8, 0),
@@ -450,6 +493,7 @@ class PayrollSummaryViewTest(TestCase):
             "/hr/payroll/",
             {
                 "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
                 "payment_date": "2026-10-08",
                 "amount": "200.00",
                 "notes": "October payment",
@@ -465,6 +509,40 @@ class PayrollSummaryViewTest(TestCase):
         self.assertEqual(payment.amount, 200)
         self.assertEqual(payment.approved_by, self.admin)
         self.assertIsNotNone(payment.approved_at)
+        self.entry.refresh_from_db()
+        self.assertTrue(self.entry.is_paid)
+        self.assertEqual(payment.work_entry, self.entry)
+
+    def test_staff_can_pay_two_entries_in_the_same_month(self):
+        second_entry = WorkEntry.objects.create(
+            employee=self.employee,
+            work_date=date(2026, 10, 9),
+            start_time=time(8, 0),
+            end_time=time(17, 0),
+            break_minutes=60,
+            status=WorkEntry.Status.APPROVED,
+        )
+        self.client.force_login(self.admin)
+
+        for entry in (self.entry, second_entry):
+            response = self.client.post(
+                "/hr/payroll/",
+                {
+                    "employee_id": self.employee.pk,
+                    "entry_id": entry.pk,
+                    "payment_date": "2026-10-09",
+                    "amount": "200.00",
+                },
+            )
+            self.assertRedirects(
+                response,
+                "/hr/payroll/?year=2026&month=10",
+            )
+
+        self.entry.refresh_from_db()
+        second_entry.refresh_from_db()
+        self.assertTrue(self.entry.is_paid)
+        self.assertTrue(second_entry.is_paid)
 
 
 class EmployeePayrollViewTest(TestCase):
