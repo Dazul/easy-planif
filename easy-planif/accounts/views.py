@@ -4,9 +4,27 @@ from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import redirect
+from django.contrib.auth.views import PasswordChangeView
+from django.urls import reverse_lazy
+from django.views.generic.base import TemplateView
 from .forms import UserEmployeeCreationForm
 from .models import CustomUser
 # Create your views here.
+
+
+class RequiredPasswordChangeView(PasswordChangeView):
+    template_name = "registration/password_change_form.html"
+    success_url = reverse_lazy("password_change_done")
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        self.request.user.must_change_password = False
+        self.request.user.save(update_fields=["must_change_password"])
+        return response
+
+
+class RequiredPasswordChangeDoneView(TemplateView):
+    template_name = "registration/password_change_done.html"
 
 class UsersView(generic.ListView):
     model = CustomUser

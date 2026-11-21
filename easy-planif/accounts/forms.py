@@ -83,6 +83,7 @@ class UserEmployeeCreationForm(UserCreationForm):
             )
 
         user = super().save(commit=False)
+        user.must_change_password = True
         if commit:
             user.save()
             try:

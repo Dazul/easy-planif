@@ -76,6 +76,48 @@ class UserEmployeeCreationViewTest(TestCase):
         employee = Employee.objects.get(user=user)
         self.assertEqual(employee.employee_number, "NEW001")
         self.assertEqual(employee.hired_on, date(2026, 1, 5))
+        self.assertTrue(user.must_change_password)
+
+    def test_new_employee_is_redirected_to_password_change(self):
+        user = CustomUser.objects.create_user(
+            username="must-change",
+            password="initial-password",
+            must_change_password=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.get("/hr/my-payroll/")
+
+        self.assertRedirects(
+            response,
+            "/accounts/password_change/",
+            fetch_redirect_response=False,
+        )
+
+    def test_password_change_clears_must_change_password(self):
+        user = CustomUser.objects.create_user(
+            username="change-password",
+            password="initial-password",
+            must_change_password=True,
+        )
+        self.client.force_login(user)
+
+        response = self.client.post(
+            "/accounts/password_change/",
+            {
+                "old_password": "initial-password",
+                "new_password1": "New-strong-password-123",
+                "new_password2": "New-strong-password-123",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            "/accounts/password_change/done/",
+            fetch_redirect_response=False,
+        )
+        user.refresh_from_db()
+        self.assertFalse(user.must_change_password)
 
     def test_non_staff_cannot_create_user_and_employee(self):
         user = CustomUser.objects.create_user(
