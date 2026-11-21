@@ -109,6 +109,11 @@
         <a class="btn btn-outline-primary"
            href="?year={{ payroll_next.0 }}&month={{ payroll_next.1 }}{% if payroll_selected_employee %}&employee_id={{ payroll_selected_employee.pk }}{% endif %}">Next</a>
       </div>
+      {% if payroll_payment_error %}
+        <div class="alert alert-danger" role="alert">
+          {{ payroll_payment_error }}
+        </div>
+      {% endif %}
       <form method="get" class="row g-2 align-items-end mb-3">
         <input type="hidden" name="year" value="{{ payroll_month|date:'Y' }}">
         <input type="hidden" name="month" value="{{ payroll_month|date:'n' }}">
@@ -177,10 +182,8 @@
                     {% if payroll_selected_employee %}
                       <input type="hidden" name="filter_employee_id" value="{{ payroll_selected_employee.pk }}">
                     {% endif %}
-                    <input type="date" name="payment_date" value="{{ row.date|date:'Y-m-d' }}"
-                           class="form-control form-control-sm" required>
                     <input type="number" name="amount" value="{{ row.due|floatformat:2 }}"
-                           min="0.01" step="0.01" class="form-control form-control-sm" required>
+                           min="{{ row.due }}" step="0.01" class="form-control form-control-sm" required>
                     <button class="btn btn-sm btn-success" type="submit">Confirm</button>
                   </form>
                 {% endif %}

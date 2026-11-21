@@ -66,17 +66,28 @@ class PayrollSummaryView(View):
         if entry.is_paid:
             raise PermissionDenied("This work entry is already paid.")
         try:
-            payment_date = date.fromisoformat(request.POST["payment_date"])
             amount = Decimal(request.POST["amount"])
         except (KeyError, TypeError, ValueError, ArithmeticError):
-            raise PermissionDenied("Invalid payroll payment data.")
+            return self.render_summary(
+                request,
+                payment_error="Invalid payroll payment data.",
+                status=400,
+            )
 
+        payment_date = entry.work_date
         period_month = date(payment_date.year, payment_date.month, 1)
         due = (entry.duration_hours * entry.employee.hourly_rate).quantize(
             Decimal("0.01")
         )
-        if amount != due:
-            raise PermissionDenied("Payment amount must equal the work entry due.")
+        if amount < due:
+            return self.render_summary(
+                request,
+                payment_error=(
+                    f"Payment amount cannot be below the due amount "
+                    f"of {due}."
+                ),
+                status=400,
+            )
         PayrollPayment.objects.create(
             employee=employee,
             period_month=period_month,
@@ -97,7 +108,7 @@ class PayrollSummaryView(View):
             redirect_url += f"&employee_id={filter_employee_id}"
         return redirect(redirect_url)
 
-    def render_summary(self, request):
+    def render_summary(self, request, payment_error=None, status=200):
         today = localdate()
         year = self._get_month_value(request, "year", today.year)
         month = self._get_month_value(request, "month", today.month)
@@ -119,7 +130,11 @@ class PayrollSummaryView(View):
             work_date__year=year,
             work_date__month=month,
             status=WorkEntry.Status.APPROVED,
-        ).select_related("employee", "employee__user")
+        ).select_related(
+            "employee",
+            "employee__user",
+            "payroll_payment",
+        )
         if selected_employee:
             entries = entries.filter(employee=selected_employee)
         rows = []
@@ -127,6 +142,7 @@ class PayrollSummaryView(View):
             due = (
                 entry.duration_hours * entry.employee.hourly_rate
             ).quantize(Decimal("0.01"))
+            payment = getattr(entry, "payroll_payment", None)
             rows.append(
                 {
                     "entry": entry,
@@ -134,7 +150,11 @@ class PayrollSummaryView(View):
                     "employee": entry.employee,
                     "hours": entry.duration_hours,
                     "due": due,
-                    "paid": due if entry.is_paid else Decimal("0.00"),
+                    "paid": (
+                        payment.amount
+                        if payment is not None
+                        else Decimal("0.00")
+                    ),
                 }
             )
 
@@ -161,7 +181,7 @@ class PayrollSummaryView(View):
             (payment.amount for payment in legacy_payments),
             Decimal("0.00"),
         )
-        total_remaining = total_due - total_paid
+        total_remaining = max(total_due - total_paid, Decimal("0.00"))
         employees = Employee.objects.select_related("user").all()
 
         return render(
@@ -180,7 +200,9 @@ class PayrollSummaryView(View):
                 "payroll_remaining": total_remaining,
                 "payroll_employees": employees,
                 "payroll_selected_employee": selected_employee,
+                "payroll_payment_error": payment_error,
             },
+            status=status,
         )
 
     @staticmethod

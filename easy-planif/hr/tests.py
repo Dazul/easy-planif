@@ -1,4 +1,5 @@
 from datetime import date, time
+from decimal import Decimal
 
 from django.core.exceptions import ValidationError
 from django.db.models import QuerySet
@@ -548,6 +549,63 @@ class PayrollSummaryViewTest(TestCase):
         self.entry.refresh_from_db()
         self.assertTrue(self.entry.is_paid)
         self.assertEqual(payment.work_entry, self.entry)
+
+    def test_payment_below_due_is_rejected_with_visible_error(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
+                "payment_date": "2026-10-08",
+                "amount": "199.99",
+            },
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertContains(
+            response,
+            "Payment amount cannot be below the due amount",
+            status_code=400,
+        )
+        self.assertFalse(
+            PayrollPayment.objects.filter(work_entry=self.entry).exists()
+        )
+
+    def test_payment_above_due_is_allowed(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.post(
+            "/hr/payroll/",
+            {
+                "employee_id": self.employee.pk,
+                "entry_id": self.entry.pk,
+                "payment_date": "2026-10-08",
+                "amount": "250.00",
+            },
+        )
+
+        self.assertRedirects(
+            response,
+            "/hr/payroll/?year=2026&month=10",
+        )
+        payment = PayrollPayment.objects.get(work_entry=self.entry)
+        self.assertEqual(payment.amount, Decimal("250.00"))
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+        row = response.context["payroll_rows"][0]
+        self.assertEqual(row["paid"], Decimal("250.00"))
+        self.assertEqual(response.context["payroll_total_paid"], Decimal("300.00"))
+        self.assertEqual(response.context["payroll_remaining"], Decimal("0.00"))
+
+    def test_payroll_does_not_allow_a_payment_date_field(self):
+        self.client.force_login(self.admin)
+
+        response = self.client.get("/hr/payroll/?year=2026&month=10")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertNotContains(response, 'name="payment_date"')
 
     def test_staff_can_pay_two_entries_in_the_same_month(self):
         second_entry = WorkEntry.objects.create(
