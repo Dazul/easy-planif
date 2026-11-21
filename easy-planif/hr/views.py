@@ -3,14 +3,38 @@ from datetime import date
 from decimal import Decimal
 
 from django.contrib.auth.decorators import login_required
-from django.core.exceptions import PermissionDenied
+from django.core.exceptions import PermissionDenied, ValidationError
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils.decorators import method_decorator
-from django.utils.timezone import localdate, now
+from django.utils.timezone import localdate
 from django.views import View
 
 from .forms import WorkEntryCreateForm, WorkEntryForm
 from .models import Employee, PayrollPayment, WorkEntry
+from .services import (
+    build_month_calendar,
+    build_payroll_summary,
+    month_navigation,
+    normalize_month,
+    pay_work_entry,
+)
+
+
+class MonthRequestMixin:
+    @staticmethod
+    def get_month_value(request, name, default):
+        try:
+            return int(request.GET.get(name, default))
+        except (TypeError, ValueError):
+            return default
+
+
+class StaffRequiredMixin:
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        if not request.user.is_staff:
+            raise PermissionDenied("Staff members only.")
+        return super().dispatch(request, *args, **kwargs)
 
 
 class HRView(View):
@@ -19,14 +43,8 @@ class HRView(View):
         return render(request, "hr.html")
 
 
-class EmployeeListView(View):
+class EmployeeListView(StaffRequiredMixin, View):
     template_name = "hr.html"
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied("Staff members only.")
-        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
         employees = Employee.objects.select_related("user").all()
@@ -40,14 +58,8 @@ class EmployeeListView(View):
         )
 
 
-class PayrollSummaryView(View):
+class PayrollSummaryView(StaffRequiredMixin, MonthRequestMixin, View):
     template_name = "hr.html"
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied("Staff members only.")
-        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request):
         return self.render_summary(request)
@@ -57,14 +69,6 @@ class PayrollSummaryView(View):
             Employee,
             pk=request.POST.get("employee_id"),
         )
-        entry = get_object_or_404(
-            WorkEntry,
-            pk=request.POST.get("entry_id"),
-            employee=employee,
-            status=WorkEntry.Status.APPROVED,
-        )
-        if entry.is_paid:
-            raise PermissionDenied("This work entry is already paid.")
         try:
             amount = Decimal(request.POST["amount"])
         except (KeyError, TypeError, ValueError, ArithmeticError):
@@ -74,32 +78,37 @@ class PayrollSummaryView(View):
                 status=400,
             )
 
-        payment_date = entry.work_date
-        period_month = date(payment_date.year, payment_date.month, 1)
-        due = (entry.duration_hours * entry.employee.hourly_rate).quantize(
-            Decimal("0.01")
-        )
-        if amount < due:
+        entry_id = request.POST.get("entry_id")
+        try:
+            entry = WorkEntry.objects.select_related("employee").get(
+                pk=entry_id,
+                employee=employee,
+                status=WorkEntry.Status.APPROVED,
+            )
+        except (WorkEntry.DoesNotExist, TypeError, ValueError):
             return self.render_summary(
                 request,
-                payment_error=(
-                    f"Payment amount cannot be below the due amount "
-                    f"of {due}."
-                ),
+                payment_error="Invalid work entry.",
                 status=400,
             )
-        PayrollPayment.objects.create(
-            employee=employee,
-            period_month=period_month,
-            payment_date=payment_date,
-            amount=amount,
-            notes=request.POST.get("notes", ""),
-            approved_by=request.user,
-            approved_at=now(),
-            work_entry=entry,
-        )
-        entry.is_paid = True
-        entry.save(update_fields=["is_paid"])
+
+        try:
+            pay_work_entry(
+                employee=employee,
+                entry_id=entry.pk,
+                amount=amount,
+                payment_date=entry.work_date,
+                approved_by=request.user,
+                notes=request.POST.get("notes", ""),
+            )
+        except ValueError as error:
+            return self.render_summary(
+                request,
+                payment_error=str(error),
+                status=400,
+            )
+
+        period_month = date(entry.work_date.year, entry.work_date.month, 1)
         filter_employee_id = request.POST.get("filter_employee_id")
         redirect_url = (
             f"{request.path}?year={period_month.year}&month={period_month.month}"
@@ -110,10 +119,9 @@ class PayrollSummaryView(View):
 
     def render_summary(self, request, payment_error=None, status=200):
         today = localdate()
-        year = self._get_month_value(request, "year", today.year)
-        month = self._get_month_value(request, "month", today.month)
-        if month not in range(1, 13):
-            year, month = today.year, today.month
+        year = self.get_month_value(request, "year", today.year)
+        month = self.get_month_value(request, "month", today.month)
+        year, month = normalize_month(year, month, today.year, today.month)
 
         period_month = date(year, month, 1)
         selected_employee_id = request.GET.get("employee_id")
@@ -126,62 +134,7 @@ class PayrollSummaryView(View):
             except (Employee.DoesNotExist, TypeError, ValueError):
                 selected_employee = None
 
-        entries = WorkEntry.objects.filter(
-            work_date__year=year,
-            work_date__month=month,
-            status=WorkEntry.Status.APPROVED,
-        ).select_related(
-            "employee",
-            "employee__user",
-            "payroll_payment",
-        )
-        if selected_employee:
-            entries = entries.filter(employee=selected_employee)
-        rows = []
-        for entry in entries:
-            due = (
-                entry.duration_hours * entry.employee.hourly_rate
-            ).quantize(Decimal("0.01"))
-            payment = getattr(entry, "payroll_payment", None)
-            rows.append(
-                {
-                    "entry": entry,
-                    "date": entry.work_date,
-                    "employee": entry.employee,
-                    "hours": entry.duration_hours,
-                    "due": due,
-                    "paid": (
-                        payment.amount
-                        if payment is not None
-                        else Decimal("0.00")
-                    ),
-                }
-            )
-
-        rows.sort(
-            key=lambda row: (
-                row["date"],
-                row["employee"].employee_number,
-                row["entry"].start_time,
-            )
-        )
-        total_hours = sum((row["hours"] for row in rows), Decimal("0.00"))
-        total_due = sum((row["due"] for row in rows), Decimal("0.00"))
-        total_paid = sum((row["paid"] for row in rows), Decimal("0.00"))
-        legacy_payments = PayrollPayment.objects.filter(
-            period_month=period_month,
-            work_entry__isnull=True,
-            approved_by__isnull=False,
-        )
-        if selected_employee:
-            legacy_payments = legacy_payments.filter(
-                employee=selected_employee
-            )
-        total_paid += sum(
-            (payment.amount for payment in legacy_payments),
-            Decimal("0.00"),
-        )
-        total_remaining = max(total_due - total_paid, Decimal("0.00"))
+        summary = build_payroll_summary(year, month, selected_employee)
         employees = Employee.objects.select_related("user").all()
 
         return render(
@@ -189,15 +142,15 @@ class PayrollSummaryView(View):
             self.template_name,
             {
                 "show_payroll_summary": True,
-                "payroll_month": period_month,
-                "payroll_previous": self._month_navigation(year, month, -1),
-                "payroll_next": self._month_navigation(year, month, 1),
-                "payroll_rows": rows,
-                "payroll_total_hours": total_hours,
-                "payroll_total_due": total_due,
-                "payroll_total_paid": total_paid,
-                "payroll_balance": total_due - total_paid,
-                "payroll_remaining": total_remaining,
+                "payroll_month": summary["period_month"],
+                "payroll_previous": month_navigation(year, month, -1),
+                "payroll_next": month_navigation(year, month, 1),
+                "payroll_rows": summary["rows"],
+                "payroll_total_hours": summary["total_hours"],
+                "payroll_total_due": summary["total_due"],
+                "payroll_total_paid": summary["total_paid"],
+                "payroll_balance": summary["total_due"] - summary["total_paid"],
+                "payroll_remaining": summary["total_remaining"],
                 "payroll_employees": employees,
                 "payroll_selected_employee": selected_employee,
                 "payroll_payment_error": payment_error,
@@ -205,24 +158,8 @@ class PayrollSummaryView(View):
             status=status,
         )
 
-    @staticmethod
-    def _month_navigation(year, month, offset):
-        month += offset
-        if month == 0:
-            return year - 1, 12
-        if month == 13:
-            return year + 1, 1
-        return year, month
 
-    @staticmethod
-    def _get_month_value(request, name, default):
-        try:
-            return int(request.GET.get(name, default))
-        except (TypeError, ValueError):
-            return default
-
-
-class EmployeePayrollView(View):
+class EmployeePayrollView(MonthRequestMixin, View):
     template_name = "hr.html"
 
     @method_decorator(login_required)
@@ -236,10 +173,9 @@ class EmployeePayrollView(View):
             .first()
         )
         today = localdate()
-        year = self._get_month_value(request, "year", today.year)
-        month = self._get_month_value(request, "month", today.month)
-        if month not in range(1, 13):
-            year, month = today.year, today.month
+        year = self.get_month_value(request, "year", today.year)
+        month = self.get_month_value(request, "month", today.month)
+        year, month = normalize_month(year, month, today.year, today.month)
 
         period_month = date(year, month, 1)
         if employee is None:
@@ -281,12 +217,8 @@ class EmployeePayrollView(View):
             {
                 "show_employee_payroll": True,
                 "employee_payroll_month": period_month,
-                "employee_payroll_previous": self._month_navigation(
-                    year, month, -1
-                ),
-                "employee_payroll_next": self._month_navigation(
-                    year, month, 1
-                ),
+                "employee_payroll_previous": month_navigation(year, month, -1),
+                "employee_payroll_next": month_navigation(year, month, 1),
                 "employee_hourly_rate": employee.hourly_rate,
                 "employee_payments": payments,
                 "employee_total_hours": total_hours,
@@ -296,39 +228,16 @@ class EmployeePayrollView(View):
             },
         )
 
-    @staticmethod
-    def _month_navigation(year, month, offset):
-        month += offset
-        if month == 0:
-            return year - 1, 12
-        if month == 13:
-            return year + 1, 1
-        return year, month
 
-    @staticmethod
-    def _get_month_value(request, name, default):
-        try:
-            return int(request.GET.get(name, default))
-        except (TypeError, ValueError):
-            return default
-
-
-class WorkCalendarView(View):
+class WorkCalendarView(StaffRequiredMixin, MonthRequestMixin, View):
     template_name = "hr.html"
     employee_only = False
 
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied("Staff members only.")
-        return super().dispatch(request, *args, **kwargs)
-
     def get(self, request):
         today = localdate()
-        year = self._get_month_value(request, "year", today.year)
-        month = self._get_month_value(request, "month", today.month)
-        if month not in range(1, 13):
-            year, month = today.year, today.month
+        year = self.get_month_value(request, "year", today.year)
+        month = self.get_month_value(request, "month", today.month)
+        year, month = normalize_month(year, month, today.year, today.month)
 
         first_day = date(year, month, 1)
         month_calendar = calendar.Calendar(firstweekday=0)
@@ -343,33 +252,14 @@ class WorkCalendarView(View):
         for entry in entries:
             entries_by_date.setdefault(entry.work_date, []).append(entry)
 
-        weeks = [
-            [
-                {
-                    "date": day,
-                    "entries": entries_by_date.get(day, []),
-                    "is_current_month": day.month == month,
-                    "day_state": (
-                        "past"
-                        if day < today
-                        else "today"
-                        if day == today
-                        else "future"
-                    ),
-                }
-                for day in week
-            ]
-            for week in month_calendar.monthdatescalendar(year, month)
-        ]
-
-        previous_month = month - 1
-        previous_year = year
-        if previous_month == 0:
-            previous_month, previous_year = 12, year - 1
-        next_month = month + 1
-        next_year = year
-        if next_month == 13:
-            next_month, next_year = 1, year + 1
+        _, _, weeks = build_month_calendar(
+            year,
+            month,
+            entries_by_date,
+            today,
+        )
+        previous_year, previous_month = month_navigation(year, month, -1)
+        next_year, next_month = month_navigation(year, month, 1)
 
         return render(
             request,
@@ -389,23 +279,10 @@ class WorkCalendarView(View):
     def get_entries_queryset(self, request):
         return WorkEntry.objects.all()
 
-    @staticmethod
-    def _get_month_value(request, name, default):
-        try:
-            return int(request.GET.get(name, default))
-        except (TypeError, ValueError):
-            return default
 
-
-class WorkDayView(View):
+class WorkDayView(StaffRequiredMixin, View):
     template_name = "hr.html"
     employee_only = False
-
-    @method_decorator(login_required)
-    def dispatch(self, request, *args, **kwargs):
-        if not request.user.is_staff:
-            raise PermissionDenied("Staff members only.")
-        return super().dispatch(request, *args, **kwargs)
 
     def get(self, request, work_date):
         entries = self.get_entries_queryset(request).filter(
@@ -474,11 +351,11 @@ class WorkDayView(View):
 
         action = request.POST.get("action", "approve")
         if action == "modify":
-            if entry.status != WorkEntry.Status.APPROVED:
-                raise PermissionDenied("Only approved work entries can be modified.")
-            entry.status = WorkEntry.Status.DRAFT
-            entry.approved_by = None
-            entry.save(update_fields=["status", "approved_by"])
+            try:
+                entry.reopen_for_modification()
+                entry.save(update_fields=["status", "approved_by"])
+            except ValidationError as error:
+                raise PermissionDenied(error.message) from error
             return redirect("hr:work_day", work_date=work_date)
 
         if entry.status == WorkEntry.Status.APPROVED:
@@ -488,8 +365,7 @@ class WorkDayView(View):
 
         if action == "approve":
             if "start_time" not in request.POST:
-                entry.status = WorkEntry.Status.APPROVED
-                entry.approved_by = request.user
+                entry.approve(request.user)
                 entry.save(update_fields=["status", "approved_by"])
                 return redirect("hr:work_day", work_date=work_date)
 
@@ -526,8 +402,7 @@ class WorkDayView(View):
                 )
 
             entry = form.save(commit=False)
-            entry.status = WorkEntry.Status.APPROVED
-            entry.approved_by = request.user
+            entry.approve(request.user)
             entry.save()
             return redirect("hr:work_day", work_date=work_date)
 

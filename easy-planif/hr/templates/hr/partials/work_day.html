@@ -1,0 +1,62 @@
+<div class="d-flex justify-content-between align-items-center my-4">
+  <h1>{% if employee_day %}My work entries{% else %}Work entries{% endif %} for {{ work_date }}</h1>
+  <a class="btn btn-outline-primary"
+     href="{% if employee_day %}{% url 'hr:employee_work_calendar' %}{% else %}{% url 'hr:work_calendar' %}{% endif %}">
+    Back to calendar
+  </a>
+</div>
+{% if not employee_day %}
+  <form method="post" class="card card-body mb-4">
+    {% csrf_token %}
+    <h2 class="h5">Add work entry</h2>
+    {{ new_entry_form.as_p }}
+    <button class="btn btn-primary" type="submit">Add entry</button>
+  </form>
+{% endif %}
+<table class="table table-striped">
+  <thead>
+    <tr>
+      <th>Employee</th><th>Start</th><th>End</th><th>Break</th>
+      <th>Hours</th><th>Status</th><th>Payment</th><th>Notes</th>
+      {% if not employee_day %}<th>Action</th>{% endif %}
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in entry_rows %}
+      {% with entry=row.entry form=row.form %}
+        <tr>
+          <td>{{ entry.employee.user }}</td>
+          <td>{% if not employee_day and entry.status != "approved" %}{{ form.start_time }}{% else %}{{ entry.start_time|time:"H:i" }}{% endif %}</td>
+          <td>{% if not employee_day and entry.status != "approved" %}{{ form.end_time }}{% else %}{{ entry.end_time|time:"H:i" }}{% endif %}</td>
+          <td>{% if not employee_day and entry.status != "approved" %}{{ form.break_minutes }}{% else %}{{ entry.break_minutes }} min{% endif %}</td>
+          <td>{{ entry.duration_hours }}</td>
+          <td>{{ entry.get_status_display }}</td>
+          <td>
+            {% if entry.is_paid %}<span class="text-success">Paid</span>
+            {% else %}<span class="text-warning">Not paid</span>{% endif %}
+          </td>
+          <td>{% if not employee_day and entry.status != "approved" %}{{ form.notes }}{% else %}{{ entry.notes|default:"-" }}{% endif %}</td>
+          {% if not employee_day %}
+            <td>
+              {% if entry.is_paid %}
+                <span class="text-muted">Paid</span>
+              {% else %}
+                <form id="entry-form-{{ entry.pk }}" method="post">
+                  {% csrf_token %}
+                  <input type="hidden" name="entry_id" value="{{ entry.pk }}">
+                  {% if entry.status != "approved" %}
+                    <button class="btn btn-sm btn-success" type="submit" name="action" value="approve">Approve</button>
+                  {% else %}
+                    <button class="btn btn-sm btn-primary" type="submit" name="action" value="modify">Modify</button>
+                  {% endif %}
+                </form>
+              {% endif %}
+            </td>
+          {% endif %}
+        </tr>
+      {% endwith %}
+    {% empty %}
+      <tr><td colspan="{% if employee_day %}8{% else %}9{% endif %}">No work entry for this day.</td></tr>
+    {% endfor %}
+  </tbody>
+</table>

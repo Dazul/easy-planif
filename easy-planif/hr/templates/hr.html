@@ -2,7 +2,6 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <!-- Required meta tags -->
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <link rel="stylesheet" type="text/css" href="{% static 'css/styles.css' %}">
@@ -18,313 +17,26 @@
 </head>
 <body>
   <div class="container">
-  {% include "menu.html" %}
-  {% if user.is_authenticated %}
-    {% if show_employee_list %}
-      <h1 class="my-4">Employees</h1>
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Employee number</th>
-            <th>Hourly rate</th>
-            <th>Hired on</th>
-            <th>Left on</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for employee in employees %}
-            <tr>
-              <td>{{ employee.user }}</td>
-              <td>{{ employee.employee_number }}</td>
-              <td>{{ employee.hourly_rate }}</td>
-              <td>{{ employee.hired_on }}</td>
-              <td>{{ employee.left_on|default:"-" }}</td>
-              <td>{{ employee.is_active|yesno:"Active,Inactive" }}</td>
-            </tr>
-          {% empty %}
-            <tr>
-              <td colspan="6">No employees found.</td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% elif employee_payroll_profile_missing %}
-      <div class="d-flex justify-content-between align-items-center my-4">
-        <h1>My payroll - {{ employee_payroll_month|date:"F Y" }}</h1>
-      </div>
-      <div class="alert alert-warning" role="alert">
-        No employee profile is associated with your account.
-      </div>
-    {% elif show_employee_payroll %}
-      <div class="d-flex justify-content-between align-items-center my-4">
-        <a class="btn btn-outline-primary"
-           href="?year={{ employee_payroll_previous.0 }}&month={{ employee_payroll_previous.1 }}">Previous</a>
-        <h1>My payroll - {{ employee_payroll_month|date:"F Y" }}</h1>
-        <a class="btn btn-outline-primary"
-           href="?year={{ employee_payroll_next.0 }}&month={{ employee_payroll_next.1 }}">Next</a>
-      </div>
-      <p>Current hourly rate: <strong>{{ employee_hourly_rate }}</strong></p>
-      <p>Approved worked hours: <strong>{{ employee_total_hours }}</strong></p>
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Payment date</th>
-            <th>Amount</th>
-            <th>Notes</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for payment in employee_payments %}
-            <tr>
-              <td>{{ payment.payment_date }}</td>
-              <td class="text-success">{{ payment.amount }}</td>
-              <td>{{ payment.notes|default:"-" }}</td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="3">No payment received for this month.</td></tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr class="fw-bold">
-            <td>Totals</td>
-            <td class="text-success">{{ employee_total_paid }}</td>
-            <td></td>
-          </tr>
-          <tr class="fw-bold">
-            <td>Remaining balance</td>
-            <td class="{% if employee_balance < 0 %}text-success{% else %}text-danger{% endif %}">
-              {{ employee_balance }}
-            </td>
-            <td>Due: {{ employee_total_due }}</td>
-          </tr>
-        </tfoot>
-      </table>
-    {% elif show_payroll_summary %}
-      <div class="d-flex justify-content-between align-items-center my-4">
-        <a class="btn btn-outline-primary"
-           href="?year={{ payroll_previous.0 }}&month={{ payroll_previous.1 }}{% if payroll_selected_employee %}&employee_id={{ payroll_selected_employee.pk }}{% endif %}">Previous</a>
-        <h1>Payroll - {{ payroll_month|date:"F Y" }}</h1>
-        <a class="btn btn-outline-primary"
-           href="?year={{ payroll_next.0 }}&month={{ payroll_next.1 }}{% if payroll_selected_employee %}&employee_id={{ payroll_selected_employee.pk }}{% endif %}">Next</a>
-      </div>
-      {% if payroll_payment_error %}
-        <div class="alert alert-danger" role="alert">
-          {{ payroll_payment_error }}
-        </div>
+    {% include "menu.html" %}
+    {% if user.is_authenticated %}
+      {% if show_employee_list %}
+        {% include "hr/partials/employee_list.html" %}
+      {% elif employee_payroll_profile_missing %}
+        {% include "hr/partials/employee_payroll_missing.html" %}
+      {% elif show_employee_payroll %}
+        {% include "hr/partials/employee_payroll.html" %}
+      {% elif show_payroll_summary %}
+        {% include "hr/partials/payroll_summary.html" %}
+      {% elif show_work_day %}
+        {% include "hr/partials/work_day.html" %}
+      {% elif show_work_calendar %}
+        {% include "hr/partials/work_calendar.html" %}
+      {% else %}
+        <h1>Working Time Management, you are authenticated.</h1>
       {% endif %}
-      <form method="get" class="row g-2 align-items-end mb-3">
-        <input type="hidden" name="year" value="{{ payroll_month|date:'Y' }}">
-        <input type="hidden" name="month" value="{{ payroll_month|date:'n' }}">
-        <div class="col-auto">
-          <label class="form-label" for="payroll-employee">Employee</label>
-          <select id="payroll-employee" name="employee_id" class="form-select">
-            <option value="">All employees</option>
-            {% for employee in payroll_employees %}
-              <option value="{{ employee.pk }}" {% if payroll_selected_employee.pk == employee.pk %}selected{% endif %}>
-                {{ employee.user }} ({{ employee.employee_number }})
-              </option>
-            {% endfor %}
-          </select>
-        </div>
-        <div class="col-auto">
-          <button type="submit" class="btn btn-primary">Filter</button>
-        </div>
-      </form>
-      <div class="row mb-3">
-        <div class="col-md-4">
-          <div class="card"><div class="card-body">
-            <div class="text-muted">Already paid</div>
-            <strong class="text-success fs-4">{{ payroll_total_paid }}</strong>
-          </div></div>
-        </div>
-        <div class="col-md-4">
-          <div class="card"><div class="card-body">
-            <div class="text-muted">Remaining to pay</div>
-            <strong class="text-danger fs-4">{{ payroll_remaining }}</strong>
-          </div></div>
-        </div>
-        <div class="col-md-4">
-          <div class="card"><div class="card-body">
-            <div class="text-muted">Total due</div>
-            <strong class="fs-4">{{ payroll_total_due }}</strong>
-          </div></div>
-        </div>
-      </div>
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Date</th>
-            <th>Employee</th>
-            <th>Worked hours</th>
-            <th class="text-danger">Due</th>
-            <th class="text-success">Paid</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in payroll_rows %}
-            <tr>
-              <td>{{ row.date }}</td>
-              <td>{{ row.employee.user }}</td>
-              <td>{{ row.hours }}</td>
-              <td class="text-danger">{{ row.due }}</td>
-              <td class="text-success">{{ row.paid }}</td>
-              <td>
-                {% if row.entry.is_paid %}
-                  <span class="text-success">Paid</span>
-                {% else %}
-                  <form method="post" class="d-flex gap-1">
-                    {% csrf_token %}
-                    <input type="hidden" name="employee_id" value="{{ row.employee.pk }}">
-                    <input type="hidden" name="entry_id" value="{{ row.entry.pk }}">
-                    {% if payroll_selected_employee %}
-                      <input type="hidden" name="filter_employee_id" value="{{ payroll_selected_employee.pk }}">
-                    {% endif %}
-                    <input type="number" name="amount" value="{{ row.due|floatformat:2 }}"
-                           min="{{ row.due }}" step="0.01" class="form-control form-control-sm" required>
-                    <button class="btn btn-sm btn-success" type="submit">Confirm</button>
-                  </form>
-                {% endif %}
-              </td>
-            </tr>
-          {% empty %}
-            <tr><td colspan="6">No approved work entry for this month.</td></tr>
-          {% endfor %}
-        </tbody>
-        <tfoot>
-          <tr class="fw-bold">
-            <td colspan="2">Total</td>
-            <td>{{ payroll_total_hours }}</td>
-            <td class="text-danger">{{ payroll_total_due }}</td>
-            <td class="text-success">{{ payroll_total_paid }}</td>
-          </tr>
-          <tr class="fw-bold">
-            <td colspan="5">Balance</td>
-            <td>{{ payroll_balance }}</td>
-          </tr>
-        </tfoot>
-      </table>
-    {% elif show_work_day %}
-      <div class="d-flex justify-content-between align-items-center my-4">
-        <h1>{% if employee_day %}My work entries{% else %}Work entries{% endif %} for {{ work_date }}</h1>
-        <a class="btn btn-outline-primary"
-           href="{% if employee_day %}{% url 'hr:employee_work_calendar' %}{% else %}{% url 'hr:work_calendar' %}{% endif %}">
-          Back to calendar
-        </a>
-      </div>
-      {% if not employee_day %}
-        <form method="post" class="card card-body mb-4">
-          {% csrf_token %}
-          <h2 class="h5">Add work entry</h2>
-          {{ new_entry_form.as_p }}
-          <button class="btn btn-primary" type="submit">Add entry</button>
-        </form>
-      {% endif %}
-      <table class="table table-striped">
-        <thead>
-          <tr>
-            <th>Employee</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Break</th>
-            <th>Hours</th>
-            <th>Status</th>
-            <th>Payment</th>
-            <th>Notes</th>
-            {% if not employee_day %}<th>Action</th>{% endif %}
-          </tr>
-        </thead>
-        <tbody>
-          {% for row in entry_rows %}
-            {% with entry=row.entry form=row.form %}
-            <tr>
-              <td>{{ entry.employee.user }}</td>
-              <td>
-                {% if not employee_day and entry.status != "approved" %}{{ form.start_time }}{% else %}{{ entry.start_time|time:"H:i" }}{% endif %}
-              </td>
-              <td>
-                {% if not employee_day and entry.status != "approved" %}{{ form.end_time }}{% else %}{{ entry.end_time|time:"H:i" }}{% endif %}
-              </td>
-              <td>
-                {% if not employee_day and entry.status != "approved" %}{{ form.break_minutes }}{% else %}{{ entry.break_minutes }} min{% endif %}
-              </td>
-              <td>{{ entry.duration_hours }}</td>
-              <td>{{ entry.get_status_display }}</td>
-              <td>
-                {% if entry.is_paid %}
-                  <span class="text-success">Paid</span>
-                {% else %}
-                  <span class="text-warning">Not paid</span>
-                {% endif %}
-              </td>
-              <td>{% if not employee_day and entry.status != "approved" %}{{ form.notes }}{% else %}{{ entry.notes|default:"-" }}{% endif %}</td>
-              {% if not employee_day %}<td>
-                {% if entry.is_paid %}
-                  <span class="text-muted">Paid</span>
-                {% else %}
-                <form id="entry-form-{{ entry.pk }}" method="post">
-                    {% csrf_token %}
-                    <input type="hidden" name="entry_id" value="{{ entry.pk }}">
-                    {% if entry.status != "approved" %}
-                      <button class="btn btn-sm btn-success" type="submit" name="action" value="approve">Approve</button>
-                    {% else %}
-                      <button class="btn btn-sm btn-primary" type="submit" name="action" value="modify">Modify</button>
-                    {% endif %}
-                </form>
-                {% endif %}
-              </td>{% endif %}
-            </tr>
-            {% endwith %}
-          {% empty %}
-            <tr><td colspan="{% if employee_day %}8{% else %}9{% endif %}">No work entry for this day.</td></tr>
-          {% endfor %}
-        </tbody>
-      </table>
-    {% elif show_work_calendar %}
-      <div class="d-flex justify-content-between align-items-center my-4">
-        <a class="btn btn-outline-primary"
-           href="?year={{ previous_year }}&month={{ previous_month }}">Previous</a>
-        <h1>{% if employee_calendar %}My working time - {% endif %}{{ calendar_month|date:"F Y" }}</h1>
-        <a class="btn btn-outline-primary"
-           href="?year={{ next_year }}&month={{ next_month }}">Next</a>
-      </div>
-      <table class="table table-bordered">
-        <thead>
-          <tr>
-            <th>Monday</th><th>Tuesday</th><th>Wednesday</th>
-            <th>Thursday</th><th>Friday</th><th>Saturday</th><th>Sunday</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for week in calendar_weeks %}
-            <tr>
-              {% for day in week %}
-                <td class="calendar-day calendar-day-{{ day.day_state }} {% if not day.is_current_month %}text-muted{% endif %}"
-                    style="height: 120px; vertical-align: top;">
-                  <a href="{% if employee_calendar %}{% url 'hr:employee_work_day' work_date=day.date|date:'Y-m-d' %}{% else %}{% url 'hr:work_day' work_date=day.date|date:'Y-m-d' %}{% endif %}">
-                    <strong>{{ day.date|date:"j" }}</strong>
-                  </a>
-                  {% for entry in day.entries %}
-                    <div class="small mt-2 {% if entry.status == 'approved' %}text-success{% elif entry.status == 'rejected' %}text-danger{% else %}text-primary{% endif %}">
-                      <strong>{{ entry.employee.user }}</strong><br>
-                      {{ entry.start_time|time:"H:i" }} - {{ entry.end_time|time:"H:i" }}
-                    </div>
-                  {% empty %}
-                    <div class="small text-muted mt-2">No entry</div>
-                  {% endfor %}
-                </td>
-              {% endfor %}
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
     {% else %}
-      <h1>Working Time Management, you are authenticated.</h1>
+      <h1>Working Time Management, you are not authenticated.</h1>
     {% endif %}
-  {% else %}
-    <h1>Working Time Management, you are not authenticated.</h1>
-  {% endif %}
+  </div>
 </body>
 </html>

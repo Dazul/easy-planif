@@ -266,6 +266,26 @@ class WorkEntry(models.Model):
             Decimal("0.01")
         )
 
+    @property
+    def due_amount(self):
+        return (self.duration_hours * self.employee.hourly_rate).quantize(
+            Decimal("0.01")
+        )
+
+    def approve(self, approved_by):
+        if self.is_paid:
+            raise ValidationError("A paid work entry cannot be approved.")
+        self.status = self.Status.APPROVED
+        self.approved_by = approved_by
+
+    def reopen_for_modification(self):
+        if self.is_paid:
+            raise ValidationError("A paid work entry cannot be modified.")
+        if self.status != self.Status.APPROVED:
+            raise ValidationError("Only approved work entries can be modified.")
+        self.status = self.Status.DRAFT
+        self.approved_by = None
+
     def __str__(self):
         """
         Retourne une représentation lisible de l'entrée de travail.
@@ -352,6 +372,18 @@ class PayrollPayment(models.Model):
                     )
                 }
             )
+        if self.work_entry is not None:
+            if self.work_entry.employee_id != self.employee_id:
+                raise ValidationError(
+                    "The work entry must belong to the payment employee."
+                )
+            if (
+                self.work_entry.work_date.year != self.period_month.year
+                or self.work_entry.work_date.month != self.period_month.month
+            ):
+                raise ValidationError(
+                    "The work entry must belong to the payroll period."
+                )
 
     def save(self, *args, **kwargs):
         """
