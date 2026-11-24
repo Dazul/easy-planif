@@ -166,15 +166,21 @@ class ReplaceRequestTest(TestCase):
         # extract the link and follow it: parse + redirect must work
         import re
         match = re.search(
-            r'href="(replacements/replace[^"]+)"', response.content.decode()
+            r'href="replacements/replace\?event_id=(\d+)&week_date=([\d-]+)"',
+            response.content.decode(),
         )
         self.assertIsNotNone(match)
-        link = match.group(1)
-        self.assertNotIn(" ", link)  # no datetime tail in the querystring
-        response = self.client.get(f"/{link}")
+        # no datetime tail in the anchor
+        anchor = match.group(2)
+        self.assertRegex(anchor, r"^\d{4}-\d{1,2}-\d{1,2}$")
+        response = self.client.get(
+            f"/replacements/replace?event_id={match.group(1)}"
+            f"&week_date={anchor}"
+        )
+        # the redirect preserves the browsed week
         self.assertRedirects(
             response,
-            reverse("cal:replacements"),
+            reverse("cal:replacements") + f"?week_date={anchor}",
             fetch_redirect_response=False,
         )
         current.delete()
