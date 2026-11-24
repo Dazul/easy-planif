@@ -7,7 +7,183 @@ from django.urls import reverse
 from accounts.models import CustomUser
 from tasks.models import Tasks, Authorizations
 
-from .models import Event, Booking, BookingType
+from .models import Event, Booking, BookingType, ReplacementRequest
+
+
+from .models import Event, Booking, BookingType, ReplacementRequest
+
+
+class ReplaceRequestTest(TestCase):
+    """Clicking a replaceable event now creates a pending
+    ReplacementRequest instead of taking the event directly."""
+
+    def setUp(self):
+        self.owner = CustomUser.objects.create_user(
+            username="owner", password="secret"
+        )
+        self.replacer = CustomUser.objects.create_user(
+            username="replacer", password="secret"
+        )
+        self.unauthorized = CustomUser.objects.create_user(
+            username="unauthorized", password="secret"
+        )
+        self.task = Tasks.objects.create(task_name="T1")
+        Authorizations.objects.create(user=self.owner, task=self.task)
+        Authorizations.objects.create(user=self.replacer, task=self.task)
+        self.event = Event.objects.create(
+            user=self.owner,
+            tasks=self.task,
+            date=datetime(2019, 10, 5, tzinfo=timezone.utc),
+            is_available=False,
+            is_replaceable=True,
+        )
+
+    def url(self, event):
+        return f"{reverse('cal:replace')}?event_id={event.id}"
+
+    def test_authorized_user_creates_pending_request(self):
+        self.client.force_login(self.replacer)
+        response = self.client.get(self.url(self.event))
+        self.assertRedirects(
+            response, reverse("cal:replacements"), fetch_redirect_response=False
+        )
+        request = ReplacementRequest.objects.get(event=self.event)
+        self.assertEqual(request.replacement_user, self.replacer)
+        self.assertEqual(request.status, ReplacementRequest.Status.PENDING)
+        # event unchanged until validated
+        self.event.refresh_from_db()
+        self.assertEqual(self.event.user, self.owner)
+        self.assertTrue(self.event.is_replaceable)
+
+    def test_unauthorized_user_cannot_request(self):
+        self.client.force_login(self.unauthorized)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReplacementRequest.objects.count(), 0)
+
+    def test_second_requester_gets_forbidden(self):
+        extra = CustomUser.objects.create_user(
+            username="extra", password="secret"
+        )
+        Authorizations.objects.create(user=extra, task=self.task)
+        self.client.force_login(self.replacer)
+        self.client.get(self.url(self.event))
+        self.client.force_login(extra)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReplacementRequest.objects.count(), 1)
+
+    def test_repeat_request_by_same_user_is_noop(self):
+        self.client.force_login(self.replacer)
+        self.client.get(self.url(self.event))
+        response = self.client.get(self.url(self.event))
+        self.assertRedirects(
+            response, reverse("cal:replacements"), fetch_redirect_response=False
+        )
+        self.assertEqual(ReplacementRequest.objects.count(), 1)
+
+    def test_request_keeps_displayed_week(self):
+        """Requesting from a browsed week returns to that same week,
+        not the real current one."""
+        self.client.force_login(self.replacer)
+        # calendar passes the anchor through to the replace link
+        response = self.client.get(
+            reverse("cal:replacements"), {"week_date": "2019-09-30"}
+        )
+        self.assertContains(
+            response, f"replacements/replace?event_id={self.event.id}&week_date=2019-09-30"
+        )
+        # and the request redirect returns to that week
+        url = self.url(self.event) + "&week_date=2019-09-30"
+        response = self.client.get(url)
+        self.assertRedirects(
+            response,
+            reverse("cal:replacements") + "?week_date=2019-09-30",
+            fetch_redirect_response=False,
+        )
+
+    def test_owner_cannot_replace_self(self):
+        self.client.force_login(self.owner)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReplacementRequest.objects.count(), 0)
+
+    def test_non_replaceable_event_cannot_be_requested(self):
+        self.event.is_replaceable = False
+        self.event.save()
+        self.client.force_login(self.replacer)
+        response = self.client.get(self.url(self.event))
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(ReplacementRequest.objects.count(), 0)
+
+    def test_replacements_calendar_marks_pending_slot(self):
+        ReplacementRequest.objects.create(
+            event=self.event, replacement_user=self.replacer
+        )
+        self.client.force_login(self.replacer)
+        response = self.client.get(
+            reverse("cal:replacements"),
+            {"week_date": "2019-09-30"},
+        )
+        self.assertContains(response, "requested by replacer")
+        # the pending slot is not takeable anymore
+        self.assertNotContains(response, "replacements/replace?event_id=")
+
+    def test_own_row_hidden_in_replacements_view(self):
+        """A user never sees their own replaceable slots listed,
+        since nobody can replace themselves."""
+        self.client.force_login(self.owner)
+        response = self.client.get(
+            reverse("cal:replacements"),
+            {"week_date": "2019-09-30"},
+        )
+        self.assertNotContains(response, "owner")
+        self.assertNotContains(response, "replacements/replace?event_id=")
+        # the other user's row is still there for a third party
+        self.client.force_login(self.replacer)
+        response = self.client.get(
+            reverse("cal:replacements"),
+            {"week_date": "2019-09-30"},
+        )
+        self.assertContains(response, "owner")
+
+    def test_current_week_default_does_not_break_links(self):
+        """Regression: with no week_date param, get_date_week returns
+        a full datetime; links built from it must carry a plain
+        YYYY-MM-DD date, otherwise following them crashes the page."""
+        # slot in the real current week, so a replace link exists
+        from django.utils.timezone import now
+        current = Event.objects.create(
+            user=self.owner,
+            tasks=self.task,
+            date=now().replace(hour=9, minute=0, second=0, microsecond=0),
+            is_available=False,
+            is_replaceable=True,
+        )
+        self.client.force_login(self.replacer)
+        response = self.client.get(reverse("cal:replacements"))
+        self.assertContains(response, "replacements/replace?event_id=")
+        # extract the link and follow it: parse + redirect must work
+        import re
+        match = re.search(
+            r'href="replacements/replace\?event_id=(\d+)&week_date=([\d-]+)"',
+            response.content.decode(),
+        )
+        self.assertIsNotNone(match)
+        # no datetime tail in the anchor
+        anchor = match.group(2)
+        self.assertRegex(anchor, r"^\d{4}-\d{1,2}-\d{1,2}$")
+        response = self.client.get(
+            f"/replacements/replace?event_id={match.group(1)}"
+            f"&week_date={anchor}"
+        )
+        # the redirect preserves the browsed week
+        self.assertRedirects(
+            response,
+            reverse("cal:replacements") + f"?week_date={anchor}",
+            fetch_redirect_response=False,
+        )
+        current.delete()
 
 
 class ToggleReplacementTest(TestCase):
@@ -344,17 +520,18 @@ class PlanningUserStatsTest(TestCase):
 
 
 class CalendarViewTest(TestCase):
-    """Note: CalendarView is currently NOT login-protected."""
+    """CalendarView is login-protected: anonymous users are sent to
+    the login page (part of the issue #41 security fixes)."""
 
     def setUp(self):
         self.user = CustomUser.objects.create_user(
             username="u1", password="secret"
         )
 
-    def test_anonymous_access_allowed(self):
-        # Document current behavior: no @login_required on CalendarView
+    def test_anonymous_redirected_to_login(self):
         response = self.client.get(reverse("cal:calendar"))
-        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/accounts/login/", response.url)
 
     def test_logged_in_shows_calendar(self):
         self.client.force_login(self.user)

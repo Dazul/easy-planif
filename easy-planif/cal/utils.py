@@ -1,8 +1,9 @@
 from calendar import HTMLCalendar
+from datetime import datetime
 
 from tasks.models import Tasks, Authorizations
 from accounts.models import CustomUser
-from .models import Event, Booking
+from .models import Event, Booking, ReplacementRequest
 from django.template.loader import render_to_string
 
 class Calendar(HTMLCalendar):
@@ -97,19 +98,38 @@ class GlobalCalendar(Calendar):
         return week
 
 class ReplacementCalendar(Calendar):
-    def __init__(self, current_user):
+    def __init__(self, current_user, week_date=None):
         super().__init__(current_user)
+        # anchor date of the displayed week, so actions can send the
+        # user back to the same week (and not the real current one).
+        # get_date_week returns a datetime when no week_date was given;
+        # links need a plain YYYY-MM-DD date, so normalize it.
+        if isinstance(week_date, datetime):
+            week_date = week_date.date()
+        self.week_date = week_date
 
     def formatday(self, day, events, user_id):
         events_per_day = events.filter(date__day=day, user__id=user_id)
         d = ''
         if len(events_per_day) != 0:
             for event in events_per_day:
-                if Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
-                    d += f'<li>  <a href="replacements/replace?event_id={event.id}">{event.tasks}</li>'
+                pending = ReplacementRequest.objects.filter(
+                    event=event, status=ReplacementRequest.Status.PENDING
+                ).first()
+                if pending:
+                    # waiting for HR validation: not takeable anymore
+                    d += (
+                        f'<li> {event.tasks} '
+                        f'(requested by {pending.replacement_user})</li>'
+                    )
+                elif Authorizations.objects.filter(user_id=self.current_user, task_id=event.tasks_id).exists():
+                    link = f"replacements/replace?event_id={event.id}"
+                    if self.week_date:
+                        link += f"&week_date={self.week_date}"
+                    d += f'<li>  <a href="{link}">{event.tasks}</a></li>'
                 else:
                     d += f'<li> {event.tasks} </li>'
-        return f'<td style="height:30px;"><ul> {d} </ul></td>'
+        return f'<td class="day"><ul> {d} </ul></td>'
 
     def weekheader(self, theweek):
         w = '<tr><th>User</th>'
@@ -120,15 +140,21 @@ class ReplacementCalendar(Calendar):
 
     # formats a week as a tr
     def formatweek(self, theweek):
-        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6], is_replaceable=True)
-        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar">\n'
+        # exclude the current user's own row: nobody can replace
+        # themselves, so their slots are irrelevant noise here
+        events = Event.objects.filter(
+            date__gte=theweek[0],
+            date__lte=theweek[6],
+            is_replaceable=True,
+        ).exclude(user=self.current_user)
+        week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar replacements">\n'
         week += self.weekheader(theweek)
         users = {}
         for event in events:
             if event.user.id not in users.keys():
                 users[event.user.id] = event.user
         for uid, user in users.items():
-            week += f'<tr><td style="height:30px;">{user}</td>'
+            week += f'<tr><td class="user-label">{user}</td>'
             for d in theweek:
                 week += self.formatday(d.day, events, uid)
             week += '</tr>'

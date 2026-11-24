@@ -9,9 +9,10 @@ from django.shortcuts import render
 from django.utils.decorators import method_decorator
 from django.contrib.auth.decorators import login_required
 from django.core.exceptions import PermissionDenied
+from django.shortcuts import get_object_or_404
 
 from .forms import EventForm, AddBookingForm, AddBookingTypeForm
-from .models import Event, Booking, BookingType
+from .models import Event, Booking, BookingType, ReplacementRequest
 from .utils import Calendar, GlobalCalendar, PlanningCalendar, ReplacementCalendar, BookingsCalendar
 from tasks.models import Tasks, Authorizations
 from datetime import timedelta
@@ -20,6 +21,10 @@ from .helpers import get_date, prev_month, next_month, get_date_week, prev_week,
 class CalendarView(generic.ListView):
     model = Event
     template_name = 'cal/calendar.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -42,6 +47,10 @@ class CalendarView(generic.ListView):
 class GlobalCalendarView(generic.ListView):
     model = Event
     template_name = 'cal/global_calendar.html'
+
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -66,6 +75,10 @@ class ReplacementCalendarView(generic.ListView):
     model = Event
     template_name = 'cal/replacements.html'
 
+    @method_decorator(login_required)
+    def dispatch(self, request, *args, **kwargs):
+        return super().dispatch(request, *args, **kwargs)
+
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
 
@@ -75,7 +88,9 @@ class ReplacementCalendarView(generic.ListView):
 
         week_dates = [monday + timedelta(days=i) for i in range(7)]
 
-        cal = ReplacementCalendar(self.request.user)
+        # same anchor used by the calendar links, so the replace
+        # action returns the user to the week they are viewing
+        cal = ReplacementCalendar(self.request.user, today)
         # Call the formatmonth method, which returns our calendar as a table
         html_cal = cal.formatweek(week_dates)
         context['replacements'] = mark_safe(html_cal)
@@ -111,12 +126,45 @@ class PlanningView(PermissionRequiredMixin, generic.ListView):
 
         return context
 
+@login_required
 def replace(request):
-    event = Event.objects.filter(id=request.GET.get('event_id'))[0]
-    event.user = request.user
-    event.is_replaceable = False
-    event.save()
-    return HttpResponseRedirect("/")
+    """Register interest in taking a replaceable event.
+
+    Creates a pending ReplacementRequest instead of taking the event
+    directly; an HR staff member then validates or refuses it (the
+    validation applies the actual user swap).
+    """
+    event = get_object_or_404(Event, id=request.GET.get("event_id"))
+    if event.user == request.user:
+        return HttpResponseForbidden("You cannot replace yourself.")
+    if not event.is_replaceable:
+        return HttpResponseForbidden("This event is not replaceable.")
+    if not Authorizations.objects.filter(
+        user=request.user, task=event.tasks
+    ).exists():
+        return HttpResponseForbidden("You are not authorized for this task.")
+    # already requested by this user?
+    if ReplacementRequest.objects.filter(
+        event=event, replacement_user=request.user, status=ReplacementRequest.Status.PENDING
+    ).exists():
+        return_path = reverse("cal:replacements")
+        week_date = request.GET.get("week_date")
+        if week_date:
+            return_path += f"?week_date={week_date}"
+        return HttpResponseRedirect(return_path)
+    # someone else already has a pending request on this event?
+    if ReplacementRequest.objects.filter(
+        event=event, status=ReplacementRequest.Status.PENDING
+    ).exists():
+        return HttpResponseForbidden("Someone already requested this replacement.")
+    ReplacementRequest.objects.create(
+        event=event, replacement_user=request.user
+    )
+    return_path = reverse("cal:replacements")
+    week_date = request.GET.get("week_date")
+    if week_date:
+        return_path += f"?week_date={week_date}"
+    return HttpResponseRedirect(return_path)
 
 def create_event(request):
     instance = Event()

@@ -21,6 +21,8 @@
     {% if user.is_authenticated %}
       {% if show_employee_list %}
         {% include "hr/partials/employee_list.html" %}
+      {% elif show_replacement_requests %}
+        {% include "hr/partials/replacement_requests.html" %}
       {% elif employee_payroll_profile_missing %}
         {% include "hr/partials/employee_payroll_missing.html" %}
       {% elif show_employee_payroll %}
