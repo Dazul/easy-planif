@@ -147,6 +147,38 @@ class ReplaceRequestTest(TestCase):
         )
         self.assertContains(response, "owner")
 
+    def test_current_week_default_does_not_break_links(self):
+        """Regression: with no week_date param, get_date_week returns
+        a full datetime; links built from it must carry a plain
+        YYYY-MM-DD date, otherwise following them crashes the page."""
+        # slot in the real current week, so a replace link exists
+        from django.utils.timezone import now
+        current = Event.objects.create(
+            user=self.owner,
+            tasks=self.task,
+            date=now().replace(hour=9, minute=0, second=0, microsecond=0),
+            is_available=False,
+            is_replaceable=True,
+        )
+        self.client.force_login(self.replacer)
+        response = self.client.get(reverse("cal:replacements"))
+        self.assertContains(response, "replacements/replace?event_id=")
+        # extract the link and follow it: parse + redirect must work
+        import re
+        match = re.search(
+            r'href="(replacements/replace[^"]+)"', response.content.decode()
+        )
+        self.assertIsNotNone(match)
+        link = match.group(1)
+        self.assertNotIn(" ", link)  # no datetime tail in the querystring
+        response = self.client.get(f"/{link}")
+        self.assertRedirects(
+            response,
+            reverse("cal:replacements"),
+            fetch_redirect_response=False,
+        )
+        current.delete()
+
 
 class ToggleReplacementTest(TestCase):
     def setUp(self):

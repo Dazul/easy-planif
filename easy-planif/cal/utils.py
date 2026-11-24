@@ -1,4 +1,5 @@
 from calendar import HTMLCalendar
+from datetime import datetime
 
 from tasks.models import Tasks, Authorizations
 from accounts.models import CustomUser
@@ -100,7 +101,11 @@ class ReplacementCalendar(Calendar):
     def __init__(self, current_user, week_date=None):
         super().__init__(current_user)
         # anchor date of the displayed week, so actions can send the
-        # user back to the same week (and not the real current one)
+        # user back to the same week (and not the real current one).
+        # get_date_week returns a datetime when no week_date was given;
+        # links need a plain YYYY-MM-DD date, so normalize it.
+        if isinstance(week_date, datetime):
+            week_date = week_date.date()
         self.week_date = week_date
 
     def formatday(self, day, events, user_id):
