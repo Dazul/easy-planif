@@ -135,7 +135,13 @@ class ReplacementCalendar(Calendar):
 
     # formats a week as a tr
     def formatweek(self, theweek):
-        events = Event.objects.filter(date__gte=theweek[0], date__lte=theweek[6], is_replaceable=True)
+        # exclude the current user's own row: nobody can replace
+        # themselves, so their slots are irrelevant noise here
+        events = Event.objects.filter(
+            date__gte=theweek[0],
+            date__lte=theweek[6],
+            is_replaceable=True,
+        ).exclude(user=self.current_user)
         week = '<table border="0" cellpadding="0" cellspacing="0" class="calendar replacements">\n'
         week += self.weekheader(theweek)
         users = {}

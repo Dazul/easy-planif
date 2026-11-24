@@ -129,6 +129,24 @@ class ReplaceRequestTest(TestCase):
         # the pending slot is not takeable anymore
         self.assertNotContains(response, "replacements/replace?event_id=")
 
+    def test_own_row_hidden_in_replacements_view(self):
+        """A user never sees their own replaceable slots listed,
+        since nobody can replace themselves."""
+        self.client.force_login(self.owner)
+        response = self.client.get(
+            reverse("cal:replacements"),
+            {"week_date": "2019-09-30"},
+        )
+        self.assertNotContains(response, "owner")
+        self.assertNotContains(response, "replacements/replace?event_id=")
+        # the other user's row is still there for a third party
+        self.client.force_login(self.replacer)
+        response = self.client.get(
+            reverse("cal:replacements"),
+            {"week_date": "2019-09-30"},
+        )
+        self.assertContains(response, "owner")
+
 
 class ToggleReplacementTest(TestCase):
     def setUp(self):
